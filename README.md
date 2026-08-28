@@ -29,6 +29,27 @@ into two PHP-facing calls (`Session::serveWaitForCall()` returning a
 `PendingCall`, then `PendingCall::replyResult()`/`replyError()`) — see
 [Provider dispatch](#provider-dispatch-unary-rpc) below.
 
+## New to Go? You'll never write any
+
+This SDK is PHP. The only thing Go is used for is compiling one shared
+library (`libmacula.so`) that PHP loads at runtime — you run one build
+command and never touch Go again. If you don't have Go installed:
+
+- **Any OS**: download the installer from
+  [go.dev/dl](https://go.dev/dl/) and follow its instructions, or
+- **macOS**: `brew install go`
+- **Debian/Ubuntu**: `sudo apt install golang-go` (check the version is
+  ≥ 1.25 — if your distro's package is older, use the go.dev installer
+  instead)
+- **Arch**: `sudo pacman -S go`
+- **Fedora**: `sudo dnf install golang`
+
+Verify with `go version`, then follow [Quick start](#quick-start) below
+— `cd cabi && go build ...` is the one and only Go command you'll ever
+run. A future release may ship prebuilt `libmacula.so` binaries via
+Composer so this step isn't needed at all; for now, building it
+yourself is a single command that takes a few seconds.
+
 ## Features
 
 | Primitive | Caller | Provider | Notes |
@@ -45,18 +66,18 @@ into two PHP-facing calls (`Session::serveWaitForCall()` returning a
 ```
 cabi/           Go module, builds libmacula.so via `go build -buildmode=c-shared`.
                 Plain consumer of macula-go-sdk's public API -- no changes
-                needed to macula-go-sdk itself.
+                needed to macula-go-sdk itself. You never edit this unless
+                you're adding a new wire primitive.
 cabi/testc/     A standalone C smoke test, independent of PHP -- proves the
                 cgo boundary and a real handshake work without needing PHP
                 installed at all.
-src/            PHP composer package. Binding.php loads libmacula.so via
-                FFI::cdef() (hand-written declarations, not the raw
-                cgo-generated header -- FFI::cdef() has no C preprocessor,
-                so #include/#ifdef in the generated header can't be fed to
-                it directly). KeyPair, Session, Value, CallResponse, Event,
-                StreamHandle/StreamItem/StreamReply/StreamOpenInfo,
-                PendingCall are the public API.
-examples/       Runnable scripts against the real production fleet.
+src/            PHP composer package -- this is what you actually use.
+                Binding.php loads libmacula.so via FFI::cdef(); KeyPair,
+                Session, Value, CallResponse, Event, StreamHandle/
+                StreamItem/StreamReply/StreamOpenInfo, PendingCall are
+                the public API.
+examples/       One runnable script per wire primitive, against the real
+                production fleet -- see Examples below.
 ```
 
 ## Quick start
@@ -64,7 +85,7 @@ examples/       Runnable scripts against the real production fleet.
 ```bash
 cd cabi && go build -buildmode=c-shared -o libmacula.so . && cd ..
 composer install
-php examples/handshake.php
+php examples/01_handshake.php
 ```
 
 ```php
@@ -88,6 +109,29 @@ $session->close();
 `Null`/`Int`/`Bytes`/`Text`/`Float` (no `List`/`Map` yet, the same v1
 cut `macula-rust-sdk-ffi`'s own `FfiValue` made — a payload needing
 structure today should be encoded as `Bytes`).
+
+## Examples
+
+One script per wire primitive, each runnable on its own against the
+real production fleet (`station-de-frankfurt.macula.io`) — read them in
+order, they build on each other:
+
+| # | File | Primitive |
+|---|---|---|
+| 1 | [`01_handshake.php`](examples/01_handshake.php) | Identity + CONNECT/HELLO handshake |
+| 2 | [`02_call.php`](examples/02_call.php) | Unary RPC, caller role |
+| 3 | [`03_publish_subscribe.php`](examples/03_publish_subscribe.php) | PubSub: SUBSCRIBE → PUBLISH → EVENT |
+| 4 | [`04_content.php`](examples/04_content.php) | Content transfer: single-block and chunked put/get |
+| 5 | [`05_stream_open_caller.php`](examples/05_stream_open_caller.php) | Streaming RPC, caller role |
+| 6 | [`06_run_rpc_provider.sh`](examples/06_run_rpc_provider.sh) | Unary RPC, provider role (`serveWaitForCall`) — two processes |
+| 7 | [`07_run_stream_provider.sh`](examples/07_run_stream_provider.sh) | Streaming RPC, provider role (`streamAccept`) — two processes |
+
+Run any of 1–5 directly (`php examples/02_call.php`); 6 and 7 are
+`.sh` scripts because the provider role genuinely needs two independent
+connections — see [Two-process pattern](#two-process-pattern-for-provider-role-examples)
+for why that's two OS processes (`06_rpc_provider_serve.php` +
+`06_rpc_provider_call.php`, `07_stream_provider_serve.php` +
+`07_stream_provider_call.php`) rather than one script.
 
 ## Provider dispatch (unary RPC)
 
@@ -129,8 +173,8 @@ followed by exec()"; this repo's own provider-role examples use two
 real OS processes instead of `pcntl_fork()`:
 
 ```bash
-bash examples/run_stream_provider_test.sh
-bash examples/run_rpc_provider_test.sh
+bash examples/06_run_rpc_provider.sh
+bash examples/07_run_stream_provider.sh
 ```
 
 Both spawn a provider process in the background, give the station a
@@ -138,6 +182,33 @@ moment to register its `advertise()`, then run a caller process against
 it — the realistic shape a real deployment takes anyway (a provider
 daemon process, separate from whatever calls it), not a workaround
 adopted only for testing.
+
+**A second real gotcha found running these:** `Session::close()` tears
+down the whole QUIC connection immediately (`macula-go-sdk`'s own
+`Session.Close` has no drain step). For unary RPC this is harmless —
+the caller only returns from `call()` after actually receiving the
+RESULT frame, so by the time either side closes, the exchange is
+already confirmed complete. For streaming, `closeSend()` is
+fire-and-forget (no acknowledgment the peer's `recv()` has seen the
+STREAM_END yet), so a provider closing its session immediately after
+`closeSend()` can race the frame it just queued, and the caller
+sometimes sees a hard connection-level EOF instead of a graceful
+end-of-stream — reproduced directly building this repo (`07`'s
+provider failed intermittently, `06`'s never did, and the RPC-vs-
+streaming acknowledgment difference above is exactly why).
+
+This is inherent to `closeSend()`'s fire-and-forget design, not
+something a fixed delay can fully eliminate (a longer `usleep()` only
+narrows the window, and did not fully close it under stress testing —
+23/24 runs clean, one still racing). `07_stream_provider_serve.php`
+keeps a short `usleep()` before `close()` as a courtesy that helps in
+the common case; `07_stream_provider_call.php` is the actual fix —
+it treats a connection-level EOF on the final `recv()` as an accepted,
+documented outcome rather than a failure, since by that point the
+real data has already arrived and both shapes mean the same thing
+("nothing more is coming"). A real long-lived provider daemon
+wouldn't hit this at all, since it has no reason to close its
+connection right after every response.
 
 ## The C ABI
 
@@ -166,31 +237,33 @@ never touch it directly.
 `station-de-frankfurt.macula.io`:**
 
 ```
-$ php examples/handshake.php
+$ php examples/01_handshake.php
 identity node_id: 912e278c91bc32aa8834b556381ba1ccac829a0d5884fa1bf8d29915012c108b
 accepted: true
 station node_id: 808d48be8780338f9739b96b17a09c086caea2fdac878b28e8b89fc8d72592a6
 OK
 
-$ php examples/rpc_pubsub.php
-CALL -> ERROR (expected): code=1 name=unknown_next_peer detail=(none)
-EVENT received: topic=... seq=1 delivered_via=direct payload=hello from macula-php-sdk
+$ php examples/02_call.php
+OBSERVED: got an ERROR (expected for a nonexistent procedure): code=1 name=unknown_next_peer
 
-$ php examples/content.php
+$ php examples/03_publish_subscribe.php
+OBSERVED: received our own EVENT back: topic=... seq=1 delivered_via=direct payload=hello from macula-php-sdk
+
+$ php examples/04_content.php
 put single block: mcid=...  single-block round trip OK
 put chunked: mcid=...  size=536633  chunked round trip OK
 
-$ php examples/stream_probe.php
+$ php examples/05_stream_open_caller.php
 no reply within 5s, as: stream: peer aborted the stream: unknown_next_peer (procedure not advertised)
 
-$ bash examples/run_stream_provider_test.sh
+$ bash examples/06_run_rpc_provider.sh
+[provider] serving CALL for procedure=...
+[caller] got RESULT 42
+
+$ bash examples/07_run_stream_provider.sh
 [provider] accepted stream_open for procedure=...  mode=0
 [caller] received chunk: hello from the provider
 [caller] received Eof
-
-$ bash examples/run_rpc_provider_test.sh
-[provider] serving CALL for procedure=...
-[caller] got RESULT 42
 ```
 
 Every empirical finding here matches `macula-go-sdk`'s and
@@ -202,15 +275,18 @@ bytes but on live protocol behavior.
 
 ## Requirements
 
-- PHP ≥ 8.1 with `ext-ffi` and `ext-sodium` enabled (`ext-pcntl` only
-  if you want to run this repo's own two-process examples via a single
-  orchestrating script rather than shelling out manually). `ext-ffi` is
-  not always enabled by default in distro PHP builds — check
+- PHP ≥ 8.1 with `ext-ffi` and `ext-sodium` enabled (`ext-pcntl` is
+  not required — this repo's own provider-role examples orchestrate two
+  processes via plain shell `&`/`wait`, not PHP-level forking). `ext-ffi`
+  is not always enabled by default in distro PHP builds — check
   `php -m | grep FFI`; if missing, PHP needs to be (re)built with
   `--with-ffi` (**not** `--enable-ffi` — that flag doesn't exist and is
   silently ignored by `configure`, which was this repo's own first
   mistake building it).
-- Go ≥ 1.25 and a C compiler (`cgo` requirement) to build `cabi/`.
+- Go ≥ 1.25 and a C compiler (`cgo` requirement) to build `cabi/` —
+  see [New to Go?](#new-to-go-youll-never-write-any) above if you don't
+  have it installed; you'll run one build command and never touch Go
+  again.
 - Composer.
 
 ## Status

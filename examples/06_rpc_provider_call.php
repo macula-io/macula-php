@@ -2,6 +2,12 @@
 
 declare(strict_types=1);
 
+/**
+ * Unary RPC, caller half: calls the procedure 06_rpc_provider_serve.php
+ * is serving in a separate process, and checks the doubled result comes
+ * back correctly. Not meant to be run alone -- see 06_run_rpc_provider.sh.
+ */
+
 require __DIR__ . '/../vendor/autoload.php';
 
 use Macula\KeyPair;

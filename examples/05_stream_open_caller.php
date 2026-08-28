@@ -2,6 +2,18 @@
 
 declare(strict_types=1);
 
+/**
+ * Streaming RPC, caller role only: open a dedicated stream against a
+ * deliberately nonexistent procedure, push one chunk, half-close, and
+ * see what the station does with an unknown procedure. Proves the wire
+ * mechanics (opening a dedicated stream, STREAM_OPEN/DATA/END, awaiting
+ * a reply) rather than a specific procedure's behavior -- for a real
+ * two-role round trip (this session's stream actually being served by
+ * another), see 07_stream_provider_serve.php / 07_run_stream_provider.sh.
+ *
+ * Run: php examples/05_stream_open_caller.php
+ */
+
 require __DIR__ . '/../vendor/autoload.php';
 
 use Macula\KeyPair;

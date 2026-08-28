@@ -2,14 +2,21 @@
 
 declare(strict_types=1);
 
+/**
+ * Unary RPC, provider half: advertises a procedure and serves exactly
+ * one inbound CALL to it (doubling whatever integer it's sent), then
+ * exits. Not meant to be run alone -- see 06_run_rpc_provider.sh, which
+ * runs this alongside 06_rpc_provider_call.php as two real OS
+ * processes (not pcntl_fork() -- see the README's "Two-process
+ * pattern" section for why).
+ */
+
 require __DIR__ . '/../vendor/autoload.php';
 
 use Macula\KeyPair;
 use Macula\Session;
 use Macula\Value;
 
-// Provider half -- two OS processes, not pcntl_fork(), same reasoning
-// as examples/stream_provider_serve.php.
 [$procedure, $realmHex] = [$argv[1], $argv[2]];
 $realm = hex2bin($realmHex);
 

@@ -2,6 +2,16 @@
 
 declare(strict_types=1);
 
+/**
+ * Content transfer: put/get by content-address, both the single-block
+ * path (small enough to be addressed purely by content hash) and the
+ * chunked path (large enough to force the manifest/Merkle-tree
+ * machinery -- put_block several times, put_manifest, then
+ * get_manifest + get_block several times on the way back).
+ *
+ * Run: php examples/04_content.php
+ */
+
 require __DIR__ . '/../vendor/autoload.php';
 
 use Macula\KeyPair;
