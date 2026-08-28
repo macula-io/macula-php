@@ -28,6 +28,32 @@ final class KeyPairTest extends TestCase
         $this->assertNotSame($a->nodeId(), $b->nodeId());
     }
 
+    public function testFromSeedBytesReconstructsTheSameNodeId(): void
+    {
+        $original = KeyPair::generate();
+        $seed = $original->privateBytes();
+
+        $reconstructed = KeyPair::fromSeedBytes($seed);
+
+        $this->assertSame($original->nodeId(), $reconstructed->nodeId());
+    }
+
+    public function testFromSeedBytesIsDeterministic(): void
+    {
+        $seed = KeyPair::generate()->privateBytes();
+
+        $a = KeyPair::fromSeedBytes($seed);
+        $b = KeyPair::fromSeedBytes($seed);
+
+        $this->assertSame($a->nodeId(), $b->nodeId());
+    }
+
+    public function testFromSeedBytesRejectsWrongLength(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        KeyPair::fromSeedBytes('too short');
+    }
+
     public function testFreeThenNodeIdThrows(): void
     {
         $identity = KeyPair::generate();

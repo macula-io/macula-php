@@ -11,7 +11,7 @@ namespace Macula;
  * The declarations below are hand-written, not the raw cgo-generated
  * header: FFI::cdef() has no C preprocessor (no #include, no #ifdef),
  * so the generated header's Go-specific typedefs and conditional
- * boilerplate can't be fed to it directly. This is the same eight
+ * boilerplate can't be fed to it directly. These are the same
  * functions cabi/libmacula.h declares, in plain C types FFI
  * understands natively.
  */
@@ -34,6 +34,8 @@ final class Binding
             self::$ffi = \FFI::cdef(<<<'CDEF'
                 uintptr_t macula_identity_generate(char **err_out);
                 int macula_identity_node_id(uintptr_t identity_handle, unsigned char *out32);
+                uintptr_t macula_identity_from_seed_bytes(unsigned char *seed32, char **err_out);
+                int macula_identity_private_bytes(uintptr_t identity_handle, unsigned char *out32);
                 void macula_identity_free(uintptr_t identity_handle);
                 uintptr_t macula_connect(char *host, uint16_t port, uintptr_t identity_handle, int timeout_ms, char **err_out);
                 int macula_session_accepted(uintptr_t session_handle);

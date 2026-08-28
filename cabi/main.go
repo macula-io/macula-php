@@ -128,6 +128,28 @@ func macula_identity_node_id(identityHandle C.uintptr_t, out32 *C.uchar) C.int {
 	return 0
 }
 
+//export macula_identity_from_seed_bytes
+func macula_identity_from_seed_bytes(seed32 *C.uchar, errOut **C.char) C.uintptr_t {
+	id, err := identity.FromSeed(bytes32FromC(seed32))
+	if err != nil {
+		setErr(errOut, err)
+		return 0
+	}
+	return C.uintptr_t(cgo.NewHandle(id))
+}
+
+//export macula_identity_private_bytes
+func macula_identity_private_bytes(identityHandle C.uintptr_t, out32 *C.uchar) C.int {
+	id, ok := cgo.Handle(identityHandle).Value().(identity.KeyPair)
+	if !ok {
+		return -1
+	}
+	seed := id.Private.Seed()
+	dst := unsafe.Slice((*byte)(unsafe.Pointer(out32)), 32)
+	copy(dst, seed)
+	return 0
+}
+
 //export macula_identity_free
 func macula_identity_free(identityHandle C.uintptr_t) {
 	cgo.Handle(identityHandle).Delete()
