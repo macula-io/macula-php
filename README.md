@@ -1,7 +1,7 @@
 # macula-php-sdk
 
-**Status, 2026-08-28 — walking skeleton, Go/C-ABI layer live-verified,
-PHP wrapper not yet built.**
+**Status, 2026-08-28 — walking skeleton, live-verified end to end**
+(PHP → `ext-ffi` → Go C ABI → QUIC → a real production station).
 
 A PHP client for the [Macula](https://github.com/macula-io/macula) wire
 protocol. Architecturally this is a thin binding, not a third from-scratch
@@ -23,65 +23,106 @@ UniFFI needs for Kotlin coroutines / Swift `async` entirely.
 ## Structure
 
 ```
-cabi/        Go module, builds libmacula.so via `go build -buildmode=c-shared`.
-             Plain consumer of macula-go-sdk's public API -- no changes
-             needed to macula-go-sdk itself.
-cabi/testc/  A standalone C smoke test, independent of PHP -- proves the
-             cgo boundary and a real handshake work before any PHP code
-             exists to test through it.
-src/         (not yet built) PHP composer package, FFI::cdef() against
-             libmacula.h.
+cabi/           Go module, builds libmacula.so via `go build -buildmode=c-shared`.
+                Plain consumer of macula-go-sdk's public API -- no changes
+                needed to macula-go-sdk itself.
+cabi/testc/     A standalone C smoke test, independent of PHP -- proves the
+                cgo boundary and a real handshake work without needing PHP
+                installed at all.
+src/            PHP composer package. Binding.php loads libmacula.so via
+                FFI::cdef() (hand-written declarations, not the raw
+                cgo-generated header -- FFI::cdef() has no C preprocessor,
+                so #include/#ifdef in the generated header can't be fed to
+                it directly); KeyPair.php and Session.php are the public API.
+examples/       Runnable scripts, e.g. handshake.php.
 ```
 
-## Building the Go layer
+## Quick start
 
 ```bash
-cd cabi
-go build -buildmode=c-shared -o libmacula.so .
+cd cabi && go build -buildmode=c-shared -o libmacula.so . && cd ..
+composer install
+php examples/handshake.php
 ```
 
-Produces `libmacula.so` + `libmacula.h`. Handles: every Go value that
-crosses the boundary (identities, sessions) is wrapped as a
-`runtime/cgo.Handle` — an opaque `uintptr_t` PHP holds and passes back,
-never touching the Go value directly. PHP must call the matching
-`_free`/`_close` function when done; there's no GC coordination across
-this boundary. Errors: functions that can fail take a `char** err_out`
-— on failure they `malloc` a C string into `*err_out` that the caller
-must free via `macula_free_string`.
+```php
+<?php
+require 'vendor/autoload.php';
 
-**Live-verified, 2026-08-28**, via `cabi/testc/smoke.c` (real C code,
-not Go's own test harness) — a full CONNECT/HELLO handshake against
-`station-de-frankfurt.macula.io` through the compiled `.so`:
+use Macula\KeyPair;
+use Macula\Session;
 
-```
-identity node_id: 65ceb482a8fe8e590798fa6c10d96b2d721c2988299c4213a91cd888de373a6d
-accepted: 1
-station node_id: 808d48be8780338f9739b96b17a09c086caea2fdac878b28e8b89fc8d72592a6
-OK
+$identity = KeyPair::generate(); // puzzle-hardened by construction
+$session = Session::connect('station-de-frankfurt.macula.io', 4433, $identity);
+
+printf("accepted: %s\n", $session->accepted ? 'true' : 'false');
+printf("station node_id: %s\n", bin2hex($session->stationNodeId));
+
+$session->close();
 ```
 
-```bash
-cc -o cabi/testc/smoke cabi/testc/smoke.c -Lcabi -lmacula -Wl,-rpath,cabi
-./cabi/testc/smoke
-```
+## The C ABI
+
+Handles: every Go value that crosses the boundary (identities, sessions)
+is wrapped as a `runtime/cgo.Handle` — an opaque `uintptr_t` PHP holds
+and passes back, never touching the Go value directly. `Session` holds
+a PHP reference to the `KeyPair` it was connected with for its whole
+lifetime, both because macula-go-sdk's own `Close` needs the identity
+again to sign the GOODBYE frame, and because that reference keeps PHP's
+refcounting GC from freeing the identity out from under a still-open
+session — their destruction order isn't otherwise guaranteed. Errors:
+functions that can fail take a `char** err_out` — on failure they
+`malloc` a C string into `*err_out` that the caller frees via
+`macula_free_string`; `Binding::withErrOut()` wraps this pattern once
+so `KeyPair`/`Session` never touch it directly.
+
+**Live-verified twice, independently, 2026-08-28:**
+
+1. `cabi/testc/smoke.c` — a standalone C program, no PHP involved,
+   linked directly against `libmacula.so`:
+   ```
+   identity node_id: 65ceb482a8fe8e590798fa6c10d96b2d721c2988299c4213a91cd888de373a6d
+   accepted: 1
+   station node_id: 808d48be8780338f9739b96b17a09c086caea2fdac878b28e8b89fc8d72592a6
+   OK
+   ```
+2. `examples/handshake.php` — the real target, PHP through `ext-ffi`:
+   ```
+   identity node_id: 912e278c91bc32aa8834b556381ba1ccac829a0d5884fa1bf8d29915012c108b
+   accepted: true
+   station node_id: 808d48be8780338f9739b96b17a09c086caea2fdac878b28e8b89fc8d72592a6
+   OK
+   ```
+
+Both runs hit `station-de-frankfurt.macula.io`, the real fleet, and both
+report the same station identity — proving the cgo handle-passing and
+blocking-call boundary survive being driven from genuine PHP, not just
+from C or from Go's own test harness.
+
+## Requirements
+
+- PHP ≥ 8.1 with `ext-ffi` and `ext-sodium` enabled. `ext-ffi` is not
+  always enabled by default in distro PHP builds — check `php -m | grep
+  FFI`; if missing, PHP needs to be (re)built with `--with-ffi` (not
+  `--enable-ffi` — that flag doesn't exist and is silently ignored by
+  `configure`, which was this repo's own first mistake building it).
+- Go ≥ 1.25 and a C compiler (`cgo` requirement) to build `cabi/`.
+- Composer.
 
 ## Status
 
-**Built and live-verified:** the Go C-ABI layer (`cabi/`) — identity
-generation, CONNECT/HELLO handshake, close. Proven end-to-end through
-real compiled C code calling into the compiled `.so`, against the real
-production station, not just exercised from within Go itself.
-
-**Not yet built:** the PHP side (`src/`) — this machine didn't have PHP
-installed; `ext-ffi` wrapper classes loading `libmacula.h`/`libmacula.so`
-are the next piece, once PHP + `ext-ffi` are available to develop and
-test against.
+**Built and live-verified, both layers:**
+- The Go C-ABI layer (`cabi/`) — identity generation, CONNECT/HELLO
+  handshake, close.
+- The PHP wrapper (`src/`) — `KeyPair`, `Session`, loaded via
+  `ext-ffi`, driving the same operations through the full real stack.
 
 **Not yet built, deferred past the walking skeleton** (same order the Go
 and Rust ports built them in): unary RPC, PubSub, content transfer,
 streaming RPC. `macula-go-sdk` already has all of these live-verified;
-extending `cabi/`'s C ABI to cover them is the same mechanical pattern
-as the identity/connect/close slice already proven here.
+extending `cabi/`'s C ABI and `src/`'s PHP classes to cover them is the
+same mechanical pattern as the identity/connect/close slice already
+proven here.
 
 ## Related projects
 

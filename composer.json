@@ -1,0 +1,15 @@
+{
+    "name": "macula-io/macula-php-sdk",
+    "description": "PHP SDK for Macula's wire protocol -- a thin FFI binding over macula-go-sdk's compiled C ABI",
+    "type": "library",
+    "license": ["Apache-2.0", "MIT"],
+    "require": {
+        "php": ">=8.1",
+        "ext-ffi": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Macula\\": "src/"
+        }
+    }
+}
