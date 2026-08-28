@@ -97,6 +97,8 @@ src/            PHP composer package -- this is what you actually use.
                 the public API.
 examples/       One runnable script per wire primitive, against the real
                 production fleet -- see Examples below.
+tests/          Offline PHPUnit suite -- no network, no live station.
+                See Testing below.
 ```
 
 ## Quick start
@@ -151,6 +153,29 @@ connections — see [Two-process pattern](#two-process-pattern-for-provider-role
 for why that's two OS processes (`06_rpc_provider_serve.php` +
 `06_rpc_provider_call.php`, `07_stream_provider_serve.php` +
 `07_stream_provider_call.php`) rather than one script.
+
+## Testing
+
+```bash
+cd cabi && go build -buildmode=c-shared -o libmacula.so . && cd ..
+composer install
+composer test   # or: vendor/bin/phpunit
+```
+
+`tests/` is an **offline** PHPUnit suite — no network, no live station,
+runs in CI on every push. It's not testing everything the examples
+above prove; it's testing what's actually testable without a real
+station: `Value` construction (pure PHP), `Binding`'s marshaling
+helpers (`valueFromParts()`, `cBytes()` — the latter does load
+`libmacula.so` and allocate a real C buffer, but never opens a
+connection), and `KeyPair` lifecycle (`generate()`/`nodeId()`/`free()`
+against the real compiled library — Ed25519 keygen and S/Kademlia
+puzzle-hardening are entirely local computation, no network involved
+at all). Everything that needs an actual CONNECT/HELLO handshake —
+which is most of the wire protocol — is proven by the
+[examples](#examples) instead, run manually against the real
+production fleet, the same live-verification discipline
+`macula-go-sdk` and `macula-rust-sdk` both use.
 
 ## Provider dispatch (unary RPC)
 

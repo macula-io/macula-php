@@ -21,24 +21,36 @@ jobs:
       - run: go vet ./...
       - run: go build -buildmode=c-shared -o libmacula.so .
 
-  php-lint:
-    name: php (lint, composer validate)
+  php-test:
+    name: php (lint, composer validate, phpunit)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cabi/go.mod
       - uses: shivammathur/setup-php@v2
         with:
           php-version: "8.3"
           extensions: ffi, sodium
       - run: composer validate --strict
       - run: |
-          for f in $(find src examples -name '*.php'); do
+          for f in $(find src tests examples -name '*.php'); do
             php -l "$f"
           done
-      # Not run in CI: the actual live examples (01-07) all dial the
-      # real production fleet, which has no uptime guarantee and must
-      # never block an unrelated PR -- same convention macula-go-sdk
-      # and macula-rust-sdk both use for their own live-tagged tests.
-      # Run manually:
-      #   cd cabi && go build -buildmode=c-shared -o libmacula.so .
-      #   composer install && php examples/01_handshake.php
+      - run: composer install --no-interaction --prefer-dist
+      # Builds the same libmacula.so the "cabi" job above already
+      # verified compiles clean -- rebuilt here (not shared as an
+      # artifact between jobs) because it's a ~10s step and keeps this
+      # job self-contained.
+      - run: cd cabi && go build -buildmode=c-shared -o libmacula.so .
+      # Offline only -- exercises pure PHP logic (Value, Binding's
+      # marshaling helpers) and real FFI/cgo mechanics that need no
+      # network (identity generation is local Ed25519 keygen + puzzle
+      # grinding). The actual live examples (01-07) all dial the real
+      # production fleet, which has no uptime guarantee and must never
+      # block an unrelated PR -- same convention macula-go-sdk and
+      # macula-rust-sdk both use for their own live-tagged tests. Run
+      # those manually:
+      #   php examples/01_handshake.php
+      - run: vendor/bin/phpunit
