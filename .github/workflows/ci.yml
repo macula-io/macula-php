@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  go-fmt-vet-build:
+    name: cabi (gofmt, go vet, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cabi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cabi/go.mod
+      - run: test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - run: go build -buildmode=c-shared -o libmacula.so .
+
+  php-lint:
+    name: php (lint, composer validate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: ffi, sodium
+      - run: composer validate --strict
+      - run: |
+          for f in $(find src examples -name '*.php'); do
+            php -l "$f"
+          done
+      # Not run in CI: the actual live examples (01-07) all dial the
+      # real production fleet, which has no uptime guarantee and must
+      # never block an unrelated PR -- same convention macula-go-sdk
+      # and macula-rust-sdk both use for their own live-tagged tests.
+      # Run manually:
+      #   cd cabi && go build -buildmode=c-shared -o libmacula.so .
+      #   composer install && php examples/01_handshake.php

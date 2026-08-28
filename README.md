@@ -1,5 +1,24 @@
 # macula-php-sdk
 
+[![CI](https://img.shields.io/github/actions/workflow/status/macula-io/macula-php-sdk/ci.yml?branch=main&label=CI)](https://github.com/macula-io/macula-php-sdk/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](#license)
+[![PHP](https://img.shields.io/badge/php-8.1%2B-777BB4?logo=php&logoColor=white)](https://php.net)
+[![Go](https://img.shields.io/badge/go-1.25%2B-00ADD8?logo=go)](https://go.dev)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow.svg)](https://buymeacoffee.com/rlefever)
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/macula-php-full-dark.svg">
+    <img src="assets/macula-php-full-light.svg" alt="Macula" width="320">
+  </picture>
+</p>
+
+<p align="center">
+  <strong>PHP client for the Macula SDK wire protocol</strong>
+</p>
+
+---
+
 **Status, 2026-08-28 — feature-complete, live-verified end to end**
 (PHP → `ext-ffi` → Go C ABI → QUIC → a real production station), matching
 [`macula-go-sdk`](https://github.com/macula-io/macula-go-sdk) and
@@ -318,3 +337,17 @@ Licensed under either of
 - MIT license ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
 
 at your option.
+
+The PHP emblem in this README's header logo is the [official PHP
+logo](https://www.php.net/download-logos.php), © Colin Viebrock,
+licensed
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) — used
+and redistributed here (as part of `assets/macula-php-full-{dark,light}.svg`)
+under that license's own attribution and share-alike terms, distinct
+from this repo's own dual Apache-2.0/MIT license above.
+
+---
+
+<p align="center">
+  <sub>Built with the BEAM's protocol, ported to PHP — <a href="https://buymeacoffee.com/rlefever">buy me a coffee</a> if this saved you some time</sub>
+</p>
