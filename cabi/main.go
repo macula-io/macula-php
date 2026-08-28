@@ -41,13 +41,64 @@ import (
 	"github.com/macula-io/macula-go-sdk/transport"
 )
 
-var errInvalidIdentityHandle = errors.New("macula-php-sdk/cabi: invalid identity handle")
+var (
+	errInvalidIdentityHandle    = errors.New("macula-php-sdk/cabi: invalid identity handle")
+	errInvalidSessionHandle     = errors.New("macula-php-sdk/cabi: invalid session handle")
+	errInvalidStreamHandle      = errors.New("macula-php-sdk/cabi: invalid stream handle")
+	errInvalidPendingCallHandle = errors.New("macula-php-sdk/cabi: invalid pending-call handle")
+)
 
 func setErr(errOut **C.char, err error) {
 	if errOut == nil || err == nil {
 		return
 	}
 	*errOut = C.CString(err.Error())
+}
+
+// cBytesToGo copies a C buffer into a fresh Go []byte -- used for every
+// bytes/text payload field crossing the boundary, so the returned slice
+// never aliases PHP-owned memory past the call that produced it.
+func cBytesToGo(ptr *C.uchar, length C.int) []byte {
+	if ptr == nil || length <= 0 {
+		return nil
+	}
+	return C.GoBytes(unsafe.Pointer(ptr), length)
+}
+
+// copy32 writes src (any length) into a 32-byte C output buffer,
+// zero-padding or truncating as needed -- every node_id/realm/call_id-
+// adjacent field crossing the boundary is exactly 32 bytes by protocol
+// construction, so truncation never actually happens in practice; this
+// just avoids a panic if it somehow did.
+func copy32(dst *C.uchar, src []byte) {
+	out := unsafe.Slice((*byte)(unsafe.Pointer(dst)), 32)
+	n := copy(out, src)
+	for i := n; i < 32; i++ {
+		out[i] = 0
+	}
+}
+
+// bytes32FromC reads a fixed 32-byte C buffer into a Go []byte.
+func bytes32FromC(src *C.uchar) []byte {
+	return append([]byte(nil), unsafe.Slice((*byte)(unsafe.Pointer(src)), 32)...)
+}
+
+// unsafe34 views a 34-byte C buffer (an MCID -- version+codec+32-byte
+// hash, plans/PLAN_WIRE_PROTOCOL.md §12.1) as a Go []byte, for reading
+// from or writing into.
+func unsafe34(buf *C.uchar) []byte {
+	return unsafe.Slice((*byte)(unsafe.Pointer(buf)), 34)
+}
+
+// cOutSlice views a PHP-allocated output buffer of the given length as
+// a Go []byte to copy into -- the PHP side is responsible for
+// allocating exactly this many bytes first (it always knows the length
+// up front via a paired *_len accessor).
+func cOutSlice(dst *C.uchar, length int) []byte {
+	if length <= 0 {
+		return nil
+	}
+	return unsafe.Slice((*byte)(unsafe.Pointer(dst)), length)
 }
 
 //export macula_free_string

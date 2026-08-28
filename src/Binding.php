@@ -40,6 +40,106 @@ final class Binding
                 int macula_session_station_node_id(uintptr_t session_handle, unsigned char *out32);
                 void macula_session_close(uintptr_t session_handle, uintptr_t identity_handle);
                 void macula_free_string(char *s);
+
+                uintptr_t macula_call(uintptr_t session_handle, char *procedure, unsigned char *realm32,
+                    int payload_kind, long long payload_int, unsigned char *payload_bytes, int payload_bytes_len, double payload_float,
+                    int timeout_ms, uintptr_t identity_handle, char **err_out);
+                int macula_response_is_error(uintptr_t response_handle);
+                int macula_response_result_kind(uintptr_t response_handle);
+                long long macula_response_result_int(uintptr_t response_handle);
+                double macula_response_result_float(uintptr_t response_handle);
+                int macula_response_result_bytes_len(uintptr_t response_handle);
+                void macula_response_result_bytes(uintptr_t response_handle, unsigned char *out);
+                void macula_response_responded_by(uintptr_t response_handle, unsigned char *out32);
+                int macula_response_error_code(uintptr_t response_handle);
+                char *macula_response_error_name(uintptr_t response_handle);
+                void macula_response_reported_by(uintptr_t response_handle, unsigned char *out32);
+                char *macula_response_error_detail(uintptr_t response_handle);
+                void macula_response_free(uintptr_t response_handle);
+
+                void macula_publish(uintptr_t session_handle, char *topic, unsigned char *realm32, unsigned long long seq,
+                    int payload_kind, long long payload_int, unsigned char *payload_bytes, int payload_bytes_len, double payload_float,
+                    long long published_at_ms, uintptr_t identity_handle, char **err_out);
+                void macula_subscribe(uintptr_t session_handle, char *topic, unsigned char *realm32, uintptr_t identity_handle, char **err_out);
+                void macula_unsubscribe(uintptr_t session_handle, char *topic, unsigned char *realm32, uintptr_t identity_handle, char **err_out);
+                void macula_advertise(uintptr_t session_handle, char *procedure, unsigned char *realm32, uintptr_t identity_handle, char **err_out);
+                void macula_unadvertise(uintptr_t session_handle, char *procedure, unsigned char *realm32, uintptr_t identity_handle, char **err_out);
+                uintptr_t macula_recv_event(uintptr_t session_handle, int timeout_ms, char **err_out);
+                char *macula_event_topic(uintptr_t event_handle);
+                void macula_event_realm(uintptr_t event_handle, unsigned char *out32);
+                void macula_event_publisher(uintptr_t event_handle, unsigned char *out32);
+                unsigned long long macula_event_seq(uintptr_t event_handle);
+                char *macula_event_delivered_via(uintptr_t event_handle);
+                int macula_event_payload_kind(uintptr_t event_handle);
+                long long macula_event_payload_int(uintptr_t event_handle);
+                double macula_event_payload_float(uintptr_t event_handle);
+                int macula_event_payload_bytes_len(uintptr_t event_handle);
+                void macula_event_payload_bytes(uintptr_t event_handle, unsigned char *out);
+                void macula_event_free(uintptr_t event_handle);
+
+                int macula_content_put(uintptr_t session_handle, unsigned char *data, int data_len, char *name,
+                    uintptr_t identity_handle, unsigned char *mcid_out, char **err_out);
+                uintptr_t macula_content_get(uintptr_t session_handle, unsigned char *mcid34, uintptr_t identity_handle, char **err_out);
+                int macula_bytes_handle_len(uintptr_t bytes_handle);
+                void macula_bytes_handle_read(uintptr_t bytes_handle, unsigned char *out);
+                void macula_bytes_handle_free(uintptr_t bytes_handle);
+
+                uintptr_t macula_stream_open(uintptr_t session_handle, char *procedure, unsigned char *realm32, int mode,
+                    int args_kind, long long args_int, unsigned char *args_bytes, int args_bytes_len, double args_float,
+                    long long deadline_ms, uintptr_t identity_handle, char **err_out);
+                uintptr_t macula_stream_accept(uintptr_t session_handle, int timeout_ms, uintptr_t *open_info_handle_out, char **err_out);
+                char *macula_stream_open_info_procedure(uintptr_t info_handle);
+                void macula_stream_open_info_realm(uintptr_t info_handle, unsigned char *out32);
+                int macula_stream_open_info_mode(uintptr_t info_handle);
+                int macula_stream_open_info_args_kind(uintptr_t info_handle);
+                long long macula_stream_open_info_args_int(uintptr_t info_handle);
+                double macula_stream_open_info_args_float(uintptr_t info_handle);
+                int macula_stream_open_info_args_bytes_len(uintptr_t info_handle);
+                void macula_stream_open_info_args_bytes(uintptr_t info_handle, unsigned char *out);
+                long long macula_stream_open_info_deadline_ms(uintptr_t info_handle);
+                void macula_stream_open_info_caller(uintptr_t info_handle, unsigned char *out32);
+                void macula_stream_open_info_free(uintptr_t info_handle);
+
+                void macula_stream_send_data(uintptr_t stream_handle, int encoding,
+                    int body_kind, long long body_int, unsigned char *body_bytes, int body_bytes_len, double body_float,
+                    uintptr_t identity_handle, char **err_out);
+                void macula_stream_close_send(uintptr_t stream_handle, uintptr_t identity_handle, char **err_out);
+                void macula_stream_send_reply(uintptr_t stream_handle,
+                    int payload_kind, long long payload_int, unsigned char *payload_bytes, int payload_bytes_len, double payload_float,
+                    uintptr_t identity_handle, char **err_out);
+                uintptr_t macula_stream_recv(uintptr_t stream_handle, int timeout_ms, char **err_out);
+                int macula_stream_item_is_eof(uintptr_t item_handle);
+                unsigned long long macula_stream_item_seq(uintptr_t item_handle);
+                int macula_stream_item_encoding(uintptr_t item_handle);
+                int macula_stream_item_body_kind(uintptr_t item_handle);
+                long long macula_stream_item_body_int(uintptr_t item_handle);
+                double macula_stream_item_body_float(uintptr_t item_handle);
+                int macula_stream_item_body_bytes_len(uintptr_t item_handle);
+                void macula_stream_item_body_bytes(uintptr_t item_handle, unsigned char *out);
+                void macula_stream_item_free(uintptr_t item_handle);
+                uintptr_t macula_stream_await_reply(uintptr_t stream_handle, int timeout_ms, char **err_out);
+                int macula_stream_reply_kind(uintptr_t reply_handle);
+                long long macula_stream_reply_int(uintptr_t reply_handle);
+                double macula_stream_reply_float(uintptr_t reply_handle);
+                int macula_stream_reply_bytes_len(uintptr_t reply_handle);
+                void macula_stream_reply_bytes(uintptr_t reply_handle, unsigned char *out);
+                void macula_stream_reply_responded_by(uintptr_t reply_handle, unsigned char *out32);
+                void macula_stream_reply_free(uintptr_t reply_handle);
+                void macula_stream_abort(uintptr_t stream_handle, char *code, char *message, uintptr_t identity_handle);
+                void macula_stream_free(uintptr_t stream_handle);
+
+                uintptr_t macula_serve_wait_for_call(uintptr_t session_handle, uintptr_t identity_handle, int timeout_ms, char **err_out);
+                char *macula_pending_call_procedure(uintptr_t pending_handle);
+                void macula_pending_call_realm(uintptr_t pending_handle, unsigned char *out32);
+                int macula_pending_call_payload_kind(uintptr_t pending_handle);
+                long long macula_pending_call_payload_int(uintptr_t pending_handle);
+                double macula_pending_call_payload_float(uintptr_t pending_handle);
+                int macula_pending_call_payload_bytes_len(uintptr_t pending_handle);
+                void macula_pending_call_payload_bytes(uintptr_t pending_handle, unsigned char *out);
+                void macula_pending_call_reply_result(uintptr_t pending_handle,
+                    int kind, long long int_val, unsigned char *bytes_val, int bytes_len, double float_val, char **err_out);
+                void macula_pending_call_reply_error(uintptr_t pending_handle, char *detail, char **err_out);
+                void macula_pending_call_free(uintptr_t pending_handle);
                 CDEF, $libPath);
         }
 
@@ -72,5 +172,54 @@ final class Binding
     public static function readBytes32(\FFI\CData $buf): string
     {
         return \FFI::string($buf, 32);
+    }
+
+    /**
+     * Allocates an `unsigned char*`-compatible buffer holding $s's raw
+     * bytes. Every function taking a payload/args/body Value needs its
+     * bytes as an actual C buffer, not a PHP string -- passing a PHP
+     * string directly where `unsigned char*` (not `char*`) is expected
+     * doesn't reliably auto-convert the way it does for `char*`
+     * parameters like `procedure`/`topic`/`host`.
+     */
+    public static function cBytes(string $s): \FFI\CData
+    {
+        $len = strlen($s);
+        $buf = self::get()->new(\FFI::arrayType(self::get()->type('unsigned char'), [max($len, 1)]));
+        if ($len > 0) {
+            \FFI::memcpy($buf, $s, $len);
+        }
+        return $buf;
+    }
+
+    /**
+     * Reads a variable-length byte buffer via the *_len-then-read
+     * accessor pair every response/event/item/reply payload uses
+     * (e.g. macula_response_result_bytes_len + macula_response_result_bytes).
+     *
+     * @param callable(): int $lenFn
+     * @param callable(\FFI\CData): void $readFn
+     */
+    public static function readVarBytes(callable $lenFn, callable $readFn): string
+    {
+        $len = $lenFn();
+        if ($len <= 0) {
+            return '';
+        }
+        $buf = self::get()->new(\FFI::arrayType(self::get()->type('unsigned char'), [$len]));
+        $readFn($buf);
+        return \FFI::string($buf, $len);
+    }
+
+    /** Builds a Value from the four fields an accessor quartet/quintet exposes. */
+    public static function valueFromParts(int $kind, int $intVal, string $bytesVal, float $floatVal): Value
+    {
+        return match ($kind) {
+            Value::KIND_INT => Value::int($intVal),
+            Value::KIND_BYTES => Value::bytes($bytesVal),
+            Value::KIND_TEXT => Value::text($bytesVal),
+            Value::KIND_FLOAT => Value::float($floatVal),
+            default => Value::null(),
+        };
     }
 }
