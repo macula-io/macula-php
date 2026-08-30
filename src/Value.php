@@ -6,7 +6,7 @@ namespace Macula;
 
 /**
  * A restricted mirror of macula-go's cbor.Value -- covers
- * Null/Int/Bytes/Text/Float, the same v1 cut macula-rust-sdk-ffi's own
+ * Null/Int/Bytes/Text/Float, the same v1 cut macula-rust-ffi's own
  * FfiValue made (no List/Map yet -- recursive shapes are deliberately
  * deferred, not a wire limitation). A payload needing structure today
  * should be encoded as Bytes.

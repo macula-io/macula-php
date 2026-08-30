@@ -22,7 +22,7 @@
 **Status, 2026-08-30 — feature-complete, live-verified end to end**
 (PHP → `ext-ffi` → Go C ABI → QUIC → a real production station), matching
 [`macula-go`](https://github.com/macula-io/macula-go) and
-[`macula-rust-sdk`](https://github.com/macula-io/macula-rust-sdk):
+[`macula-rust`](https://github.com/macula-io/macula-rust):
 handshake, unary RPC, PubSub, content transfer, and streaming RPC, every
 primitive in both caller and provider roles, plus direct-dial (resolve a
 procedure via the mesh DHT and dial its serving station in one hop,
@@ -50,7 +50,7 @@ default blocking-call execution model. This repo wraps that existing SDK
 as a C shared library and loads it from PHP via `ext-ffi`, rather than
 re-implementing CBOR/QUIC/Ed25519/frame signing a third time.
 
-Rust's own mobile bindings (`macula-rust-sdk-ffi`) took the analogous
+Rust's own mobile bindings (`macula-rust-ffi`) took the analogous
 approach for Kotlin/Swift via UniFFI — no UniFFI backend exists for PHP,
 so this repo hand-builds a much simpler *synchronous* C ABI directly
 (PHP calls a blocking C function; the Go side blocks on the QUIC
@@ -147,7 +147,7 @@ $session->close();
 
 `Value` is a restricted mirror of `macula-go`'s `cbor.Value` --
 `Null`/`Int`/`Bytes`/`Text`/`Float` (no `List`/`Map` yet, the same v1
-cut `macula-rust-sdk-ffi`'s own `FfiValue` made — a payload needing
+cut `macula-rust-ffi`'s own `FfiValue` made — a payload needing
 structure today should be encoded as `Bytes`).
 
 ## Examples
@@ -194,7 +194,7 @@ at all). Everything that needs an actual CONNECT/HELLO handshake —
 which is most of the wire protocol — is proven by the
 [examples](#examples) instead, run manually against the real
 production fleet, the same live-verification discipline
-`macula-go` and `macula-rust-sdk` both use.
+`macula-go` and `macula-rust` both use.
 
 ## Provider dispatch (unary RPC)
 
@@ -330,7 +330,7 @@ $ bash examples/07_run_stream_provider.sh
 ```
 
 Every empirical finding here matches `macula-go`'s and
-`macula-rust-sdk`'s own live results exactly (`unknown_next_peer` for
+`macula-rust`'s own live results exactly (`unknown_next_peer` for
 both an un-advertised CALL and an un-advertised STREAM_OPEN,
 `delivered_via=direct` for a subscriber receiving its own publish) —
 three independent implementations, now four, agreeing not just on wire
@@ -357,7 +357,7 @@ bytes but on live protocol behavior.
 **Built and live-verified, feature-complete:** identity, CONNECT/HELLO,
 unary RPC (both roles), PubSub, content transfer, streaming RPC (both
 roles) — the same wire-protocol scope `macula-go` and
-`macula-rust-sdk` cover, all driven through the full real stack from
+`macula-rust` cover, all driven through the full real stack from
 genuine PHP.
 
 **Not built, and out of scope for a leaf SDK entirely** (not a gap):
@@ -370,7 +370,7 @@ own spec says so explicitly.
 | Project | Description |
 |---|---|
 | [macula-go](https://github.com/macula-io/macula-go) | The Go SDK this repo binds to |
-| [macula-rust-sdk](https://github.com/macula-io/macula-rust-sdk) | The Rust port — mobile bindings via UniFFI |
+| [macula-rust](https://github.com/macula-io/macula-rust) | The Rust port — mobile bindings via UniFFI |
 | [macula](https://github.com/macula-io/macula) | The reference SDK (Erlang/OTP) |
 
 ## License

@@ -8,7 +8,7 @@ import "C"
 import "github.com/macula-io/macula-go/cbor"
 
 // Payload kind tags shared with the PHP side (see src/Value.php) --
-// mirrors macula-rust-sdk-ffi's own FfiValue restriction to
+// mirrors macula-rust-ffi's own FfiValue restriction to
 // Null/Int/Bytes/Text/Float (no List/Map yet -- recursive shapes are a
 // deliberate v1 cut, not a wire limitation, matching that precedent
 // exactly).

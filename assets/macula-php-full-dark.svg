@@ -82,7 +82,7 @@
 
   <!-- Official PHP logo (php.net, CC BY-SA 4.0, Colin Viebrock) badge:
        styled as an enlarged hub node, matching macula-go's gopher
-       and macula-rust-sdk's gear badge treatment. -->
+       and macula-rust's gear badge treatment. -->
   <defs>
     <clipPath clipPathUnits="userSpaceOnUse" id="php-clipPath3444">
       <path d="M 11.52,162 C 11.52,81.677 135.307,16.561 288,16.561 l 0,0 c 152.693,0 276.481,65.116 276.481,145.439 l 0,0 c 0,80.322 -123.788,145.439 -276.481,145.439 l 0,0 C 135.307,307.439 11.52,242.322 11.52,162" id="php-path3446"/>

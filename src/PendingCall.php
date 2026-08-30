@@ -80,7 +80,7 @@ final class PendingCall
      * Reply with a BOLT#4 ERROR (always `unknown_error`, 0x0F -- this
      * split interface has no way to distinguish "unknown procedure"
      * from any other application failure, the same documented
-     * limitation macula-rust-sdk-ffi's own FfiCallHandler has: that
+     * limitation macula-rust-ffi's own FfiCallHandler has: that
      * distinction needs a synchronous pre-check ahead of the call,
      * which the split-in-two shape here doesn't have a slot for
      * either. $detail becomes the ERROR frame's own detail field.

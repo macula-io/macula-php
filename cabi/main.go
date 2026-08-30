@@ -18,7 +18,7 @@
 // macula_free_string. On success `*err_out` is left untouched.
 //
 // Walking skeleton scope only, matching exactly what macula-go and
-// macula-rust-sdk each proved first: identity generation, the
+// macula-rust each proved first: identity generation, the
 // CONNECT/HELLO handshake, and close — live-verified against a real
 // station before anything else gets built on top.
 package main

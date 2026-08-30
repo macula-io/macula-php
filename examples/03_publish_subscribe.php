@@ -7,7 +7,7 @@ declare(strict_types=1);
  * for the EVENT delivery. Whether a subscriber receives its own
  * publish isn't guaranteed by the protocol -- this observes and
  * reports rather than assuming an answer (macula-go's and
- * macula-rust-sdk's own live tests found "yes, delivered_via=direct,
+ * macula-rust's own live tests found "yes, delivered_via=direct,
  * essentially instantly" against this same fleet -- but that's a fact
  * about this station, not a protocol guarantee this example should
  * assert as fact).
