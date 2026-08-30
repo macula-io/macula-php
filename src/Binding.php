@@ -142,6 +142,54 @@ final class Binding
                     int kind, long long int_val, unsigned char *bytes_val, int bytes_len, double float_val, char **err_out);
                 void macula_pending_call_reply_error(uintptr_t pending_handle, char *detail, char **err_out);
                 void macula_pending_call_free(uintptr_t pending_handle);
+
+                char *macula_resolve_direct(uintptr_t session_handle, char *procedure, unsigned char *realm32,
+                    uintptr_t identity_handle, unsigned char *station_out, uint16_t *port_out, char **err_out);
+                char *macula_resolve_direct_with_cert_chain(uintptr_t session_handle, char *procedure, unsigned char *realm32,
+                    unsigned char *realm_ca_pem, int realm_ca_pem_len, char *expected_org,
+                    uintptr_t identity_handle, unsigned char *station_out, uint16_t *port_out, char **err_out);
+                uintptr_t macula_call_direct(uintptr_t resolve_via_session_handle, char *procedure, unsigned char *realm32,
+                    int payload_kind, long long payload_int, unsigned char *payload_bytes, int payload_bytes_len, double payload_float,
+                    int timeout_ms, uintptr_t identity_handle, char **err_out);
+                uintptr_t macula_call_direct_with_cert_chain(uintptr_t resolve_via_session_handle, char *procedure, unsigned char *realm32,
+                    unsigned char *realm_ca_pem, int realm_ca_pem_len, char *expected_org,
+                    int payload_kind, long long payload_int, unsigned char *payload_bytes, int payload_bytes_len, double payload_float,
+                    int timeout_ms, uintptr_t identity_handle, char **err_out);
+                void macula_advertise_direct(uintptr_t session_handle, char *procedure, unsigned char *realm32,
+                    long long ttl_ms, uintptr_t identity_handle, char **err_out);
+                void macula_advertise_direct_with_cert_chain(uintptr_t session_handle, char *procedure, unsigned char *realm32,
+                    long long ttl_ms, unsigned char *cert_chain_pem, int cert_chain_pem_len, uintptr_t identity_handle, char **err_out);
+                uintptr_t macula_stream_open_direct(uintptr_t resolve_via_session_handle, char *procedure, unsigned char *realm32, int mode,
+                    int args_kind, long long args_int, unsigned char *args_bytes, int args_bytes_len, double args_float,
+                    long long deadline_ms, int timeout_ms, uintptr_t identity_handle, uintptr_t *session_handle_out, char **err_out);
+                uintptr_t macula_stream_open_direct_with_cert_chain(uintptr_t resolve_via_session_handle, char *procedure, unsigned char *realm32,
+                    unsigned char *realm_ca_pem, int realm_ca_pem_len, char *expected_org, int mode,
+                    int args_kind, long long args_int, unsigned char *args_bytes, int args_bytes_len, double args_float,
+                    long long deadline_ms, int timeout_ms, uintptr_t identity_handle, uintptr_t *session_handle_out, char **err_out);
+                int macula_put_direct(uintptr_t resolve_via_session_handle, unsigned char *station32,
+                    unsigned char *data, int data_len, char *name, int timeout_ms,
+                    uintptr_t identity_handle, unsigned char *mcid_out, char **err_out);
+                uintptr_t macula_get_direct(uintptr_t resolve_via_session_handle, unsigned char *mcid34, int timeout_ms,
+                    uintptr_t identity_handle, char **err_out);
+
+                uintptr_t macula_ucan_create(char *issuer, char *audience, char *capabilities_json,
+                    int has_expires_at, long long expires_at_unix_sec, int has_not_before, long long not_before_unix_sec,
+                    uintptr_t identity_handle, char **err_out);
+                uintptr_t macula_ucan_verify(unsigned char *token_bytes, int token_len, unsigned char *public_key32, char **err_out);
+                uintptr_t macula_ucan_decode(unsigned char *token_bytes, int token_len, char **err_out);
+                int macula_ucan_is_expired(unsigned char *token_bytes, int token_len, char **err_out);
+                char *macula_ucan_payload_issuer(uintptr_t payload_handle);
+                char *macula_ucan_payload_audience(uintptr_t payload_handle);
+                long long macula_ucan_payload_expires_at(uintptr_t payload_handle, int *has_out);
+                long long macula_ucan_payload_not_before(uintptr_t payload_handle, int *has_out);
+                char *macula_ucan_payload_capabilities_json(uintptr_t payload_handle);
+                char *macula_ucan_payload_proofs_json(uintptr_t payload_handle);
+                void macula_ucan_payload_free(uintptr_t payload_handle);
+                uintptr_t macula_call_with_ucan(uintptr_t session_handle, char *procedure, unsigned char *realm32,
+                    int payload_kind, long long payload_int, unsigned char *payload_bytes, int payload_bytes_len, double payload_float,
+                    int timeout_ms, uintptr_t identity_handle, unsigned char *ucan_token, int ucan_token_len, char **err_out);
+                uintptr_t macula_serve_wait_for_call_gated(uintptr_t session_handle, uintptr_t identity_handle, int timeout_ms,
+                    unsigned char *required_issuer32, char **err_out);
                 CDEF, $libPath);
         }
 

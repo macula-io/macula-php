@@ -19,12 +19,27 @@
 
 ---
 
-**Status, 2026-08-28 — feature-complete, live-verified end to end**
+**Status, 2026-08-30 — feature-complete, live-verified end to end**
 (PHP → `ext-ffi` → Go C ABI → QUIC → a real production station), matching
 [`macula-go-sdk`](https://github.com/macula-io/macula-go-sdk) and
 [`macula-rust-sdk`](https://github.com/macula-io/macula-rust-sdk):
 handshake, unary RPC, PubSub, content transfer, and streaming RPC, every
-primitive in both caller and provider roles.
+primitive in both caller and provider roles, plus direct-dial (resolve a
+procedure via the mesh DHT and dial its serving station in one hop,
+plain and cert-chain-authorized), UCAN (mint/verify/introspect and
+policy-gated serving), and RPC telemetry auto-facts (no extra code needed
+on this side -- they fire automatically underneath `call()`/
+`serveWaitForCall()`, inherited straight from `macula-go-sdk`).
+
+Two capabilities present in `macula-go-sdk` are intentionally NOT exposed
+here: periodic re-advertise and the supervised PubSub wrapper
+(`RunPublisher`/`RunSubscriber`) are both background-loop-shaped APIs on
+the Go side. A PHP process can trivially host the same external behavior
+itself -- call `advertiseDirect()`/`advertise()` again on your own
+schedule inside a `while` loop for the former, and loop `subscribe()` +
+`recvEvent()` yourself for the latter -- so wrapping a second, Go-side
+loop across the FFI boundary would only add callback plumbing this SDK's
+synchronous design otherwise avoids entirely, not new capability.
 
 A PHP client for the [Macula](https://github.com/macula-io/macula) wire
 protocol. Architecturally this is a thin binding, not a third from-scratch
@@ -79,6 +94,10 @@ yourself is a single command that takes a few seconds.
 | Content transfer (single-block + chunked) | ✅ | ✅ | Content-addressed, BLAKE3/SHA-256, Merkle-verified |
 | Streaming RPC (STREAM_OPEN/DATA/END/REPLY) | ✅ | ✅ | Provider via `streamAccept()` — no rendezvous needed, unlike unary RPC |
 | RPC advertise/unadvertise | ✅ | — | |
+| Direct-dial RPC (`resolveDirect`/`callDirect`/`advertiseDirect`) | ✅ | ✅ | Resolves a procedure via the mesh DHT and dials its station in one hop; `WithCertChain` variants add managed-realm org authorization |
+| Direct-dial streaming/content (`streamOpenDirect`/`putDirect`/`getDirect`) | ✅ | — | `getDirect` only resolves content a station/relay announced — a leaf identity can't legitimately publish a `content_announcement`, matching `macula-go-sdk`'s own scope |
+| UCAN (mint/verify/introspect, policy-gated serving) | ✅ | ✅ | `Ucan::create`/`verify`/`decode`; `Session::callWithUcan`/`serveWaitForCallGated` — a rejected caller is refused before any PHP handler runs |
+| RPC telemetry facts (`rpc.sent_v1`/`rpc.completed_v1`/`rpc.received_v1`/`rpc.replied_v1`) | ✅ | ✅ | Automatic, no extra call needed — inherited from `macula-go-sdk`'s `Session.Call`/`ServeOneCallGated` |
 
 ## Structure
 
