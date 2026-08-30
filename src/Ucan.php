@@ -7,7 +7,7 @@ namespace Macula;
 /**
  * UCAN (User Controlled Authorization Network) token minting and
  * verification -- a self-contained, delegable capability token,
- * independent of any Session. Mirrors macula-go-sdk's `ucan` package,
+ * independent of any Session. Mirrors macula-go's `ucan` package,
  * which itself hand-rolls the JWT-shaped UCAN 0.10.0 draft to match
  * `macula_ucan_nif`'s own reference implementation exactly (the current
  * UCAN spec, 1.0.0-rc.1, uses an incompatible non-JWT/IPLD wire format --
@@ -21,7 +21,7 @@ final class Ucan
      * Mints a new UCAN token, self-issued and signed by $identity.
      * $issuer/$audience are opaque DID strings -- this does not validate
      * or resolve DID structure (that's a separate, unbuilt concern on
-     * both the Erlang reference and macula-go-sdk).
+     * both the Erlang reference and macula-go).
      *
      * @param list<array{with: string, can: string}> $capabilities
      */

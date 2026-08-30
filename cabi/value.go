@@ -5,7 +5,7 @@ package main
 */
 import "C"
 
-import "github.com/macula-io/macula-go-sdk/cbor"
+import "github.com/macula-io/macula-go/cbor"
 
 // Payload kind tags shared with the PHP side (see src/Value.php) --
 // mirrors macula-rust-sdk-ffi's own FfiValue restriction to

@@ -6,7 +6,7 @@ namespace Macula;
 
 /**
  * A PubSub delivery -- what Session::recvEvent() hands back. Wraps an
- * opaque handle into macula-go-sdk's frame.EventInfo.
+ * opaque handle into macula-go's frame.EventInfo.
  */
 final class Event
 {

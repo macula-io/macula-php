@@ -9,10 +9,10 @@ import (
 	"context"
 	"runtime/cgo"
 
-	"github.com/macula-io/macula-go-sdk/connection"
-	"github.com/macula-io/macula-go-sdk/content"
-	"github.com/macula-io/macula-go-sdk/identity"
-	"github.com/macula-io/macula-go-sdk/manifest"
+	"github.com/macula-io/macula-go/connection"
+	"github.com/macula-io/macula-go/content"
+	"github.com/macula-io/macula-go/identity"
+	"github.com/macula-io/macula-go/manifest"
 )
 
 //export macula_content_put

@@ -1,8 +1,8 @@
-module github.com/macula-io/macula-php-sdk/cabi
+module github.com/macula-io/macula-php/cabi
 
 go 1.27.0
 
-require github.com/macula-io/macula-go-sdk v0.0.0-20260830023125-1bd1ae44c11d
+require github.com/macula-io/macula-go v0.3.0
 
 require (
 	github.com/google/uuid v1.6.0 // indirect

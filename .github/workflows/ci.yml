@@ -49,7 +49,7 @@ jobs:
       # network (identity generation is local Ed25519 keygen + puzzle
       # grinding). The actual live examples (01-07) all dial the real
       # production fleet, which has no uptime guarantee and must never
-      # block an unrelated PR -- same convention macula-go-sdk and
+      # block an unrelated PR -- same convention macula-go and
       # macula-rust-sdk both use for their own live-tagged tests. Run
       # those manually:
       #   php examples/01_handshake.php

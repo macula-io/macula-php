@@ -6,7 +6,7 @@ namespace Macula;
 
 /**
  * The RESULT or ERROR reply to a CALL. Wraps an opaque handle into
- * macula-go-sdk's frame.CallResponse -- freed automatically when this
+ * macula-go's frame.CallResponse -- freed automatically when this
  * object is destroyed.
  */
 final class CallResponse

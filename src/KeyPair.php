@@ -6,7 +6,7 @@ namespace Macula;
 
 /**
  * A puzzle-hardened Ed25519 identity. Wraps an opaque handle into
- * macula-go-sdk's identity.KeyPair, generated on the Go side (via
+ * macula-go's identity.KeyPair, generated on the Go side (via
  * identity.Generate(), already S/Kademlia puzzle-hardened by default --
  * see that function's own doc for why this is always the right choice).
  */

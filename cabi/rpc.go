@@ -9,9 +9,9 @@ import (
 	"runtime/cgo"
 	"time"
 
-	"github.com/macula-io/macula-go-sdk/connection"
-	"github.com/macula-io/macula-go-sdk/frame"
-	"github.com/macula-io/macula-go-sdk/identity"
+	"github.com/macula-io/macula-go/connection"
+	"github.com/macula-io/macula-go/frame"
+	"github.com/macula-io/macula-go/identity"
 )
 
 //export macula_call

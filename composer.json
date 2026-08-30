@@ -1,9 +1,9 @@
 {
-    "name": "macula-io/macula-php-sdk",
-    "description": "PHP client for the Macula mesh wire protocol -- a thin FFI binding over macula-go-sdk's compiled C ABI (unary RPC, PubSub, content transfer, streaming RPC, both caller and provider roles)",
+    "name": "macula-io/macula-php",
+    "description": "PHP client for the Macula mesh wire protocol -- a thin FFI binding over macula-go's compiled C ABI (unary RPC, PubSub, content transfer, streaming RPC, both caller and provider roles)",
     "type": "library",
     "keywords": ["macula", "mesh", "quic", "rpc", "pubsub", "ffi", "wire-protocol"],
-    "homepage": "https://github.com/macula-io/macula-php-sdk",
+    "homepage": "https://github.com/macula-io/macula-php",
     "license": ["Apache-2.0", "MIT"],
     "authors": [
         {
@@ -12,8 +12,8 @@
         }
     ],
     "support": {
-        "issues": "https://github.com/macula-io/macula-php-sdk/issues",
-        "source": "https://github.com/macula-io/macula-php-sdk"
+        "issues": "https://github.com/macula-io/macula-php/issues",
+        "source": "https://github.com/macula-io/macula-php"
     },
     "require": {
         "php": ">=8.1",

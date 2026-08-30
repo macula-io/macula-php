@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Macula;
 
 /**
- * A restricted mirror of macula-go-sdk's cbor.Value -- covers
+ * A restricted mirror of macula-go's cbor.Value -- covers
  * Null/Int/Bytes/Text/Float, the same v1 cut macula-rust-sdk-ffi's own
  * FfiValue made (no List/Map yet -- recursive shapes are deliberately
  * deferred, not a wire limitation). A payload needing structure today

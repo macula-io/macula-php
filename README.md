@@ -1,6 +1,6 @@
-# macula-php-sdk
+# macula-php
 
-[![CI](https://img.shields.io/github/actions/workflow/status/macula-io/macula-php-sdk/ci.yml?branch=main&label=CI)](https://github.com/macula-io/macula-php-sdk/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/macula-io/macula-php/ci.yml?branch=main&label=CI)](https://github.com/macula-io/macula-php/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](#license)
 [![PHP](https://img.shields.io/badge/php-8.1%2B-777BB4?logo=php&logoColor=white)](https://php.net)
 [![Go](https://img.shields.io/badge/go-1.25%2B-00ADD8?logo=go)](https://go.dev)
@@ -21,7 +21,7 @@
 
 **Status, 2026-08-30 — feature-complete, live-verified end to end**
 (PHP → `ext-ffi` → Go C ABI → QUIC → a real production station), matching
-[`macula-go-sdk`](https://github.com/macula-io/macula-go-sdk) and
+[`macula-go`](https://github.com/macula-io/macula-go) and
 [`macula-rust-sdk`](https://github.com/macula-io/macula-rust-sdk):
 handshake, unary RPC, PubSub, content transfer, and streaming RPC, every
 primitive in both caller and provider roles, plus direct-dial (resolve a
@@ -29,9 +29,9 @@ procedure via the mesh DHT and dial its serving station in one hop,
 plain and cert-chain-authorized), UCAN (mint/verify/introspect and
 policy-gated serving), and RPC telemetry auto-facts (no extra code needed
 on this side -- they fire automatically underneath `call()`/
-`serveWaitForCall()`, inherited straight from `macula-go-sdk`).
+`serveWaitForCall()`, inherited straight from `macula-go`).
 
-Two capabilities present in `macula-go-sdk` are intentionally NOT exposed
+Two capabilities present in `macula-go` are intentionally NOT exposed
 here: periodic re-advertise and the supervised PubSub wrapper
 (`RunPublisher`/`RunSubscriber`) are both background-loop-shaped APIs on
 the Go side. A PHP process can trivially host the same external behavior
@@ -43,7 +43,7 @@ synchronous design otherwise avoids entirely, not new capability.
 
 A PHP client for the [Macula](https://github.com/macula-io/macula) wire
 protocol. Architecturally this is a thin binding, not a third from-scratch
-protocol port: `macula-go-sdk` already has a complete, live-verified
+protocol port: `macula-go` already has a complete, live-verified
 implementation of the wire protocol with a plain blocking API (no
 goroutines/channels required of the caller) — a close match for PHP's own
 default blocking-call execution model. This repo wraps that existing SDK
@@ -95,16 +95,16 @@ yourself is a single command that takes a few seconds.
 | Streaming RPC (STREAM_OPEN/DATA/END/REPLY) | ✅ | ✅ | Provider via `streamAccept()` — no rendezvous needed, unlike unary RPC |
 | RPC advertise/unadvertise | ✅ | — | |
 | Direct-dial RPC (`resolveDirect`/`callDirect`/`advertiseDirect`) | ✅ | ✅ | Resolves a procedure via the mesh DHT and dials its station in one hop; `WithCertChain` variants add managed-realm org authorization |
-| Direct-dial streaming/content (`streamOpenDirect`/`putDirect`/`getDirect`) | ✅ | — | `getDirect` only resolves content a station/relay announced — a leaf identity can't legitimately publish a `content_announcement`, matching `macula-go-sdk`'s own scope |
+| Direct-dial streaming/content (`streamOpenDirect`/`putDirect`/`getDirect`) | ✅ | — | `getDirect` only resolves content a station/relay announced — a leaf identity can't legitimately publish a `content_announcement`, matching `macula-go`'s own scope |
 | UCAN (mint/verify/introspect, policy-gated serving) | ✅ | ✅ | `Ucan::create`/`verify`/`decode`; `Session::callWithUcan`/`serveWaitForCallGated` — a rejected caller is refused before any PHP handler runs |
-| RPC telemetry facts (`rpc.sent_v1`/`rpc.completed_v1`/`rpc.received_v1`/`rpc.replied_v1`) | ✅ | ✅ | Automatic, no extra call needed — inherited from `macula-go-sdk`'s `Session.Call`/`ServeOneCallGated` |
+| RPC telemetry facts (`rpc.sent_v1`/`rpc.completed_v1`/`rpc.received_v1`/`rpc.replied_v1`) | ✅ | ✅ | Automatic, no extra call needed — inherited from `macula-go`'s `Session.Call`/`ServeOneCallGated` |
 
 ## Structure
 
 ```
 cabi/           Go module, builds libmacula.so via `go build -buildmode=c-shared`.
-                Plain consumer of macula-go-sdk's public API -- no changes
-                needed to macula-go-sdk itself. You never edit this unless
+                Plain consumer of macula-go's public API -- no changes
+                needed to macula-go itself. You never edit this unless
                 you're adding a new wire primitive.
 cabi/testc/     A standalone C smoke test, independent of PHP -- proves the
                 cgo boundary and a real handshake work without needing PHP
@@ -145,7 +145,7 @@ printf("is_error=%s payload=%s\n", $response->isError() ? 'true' : 'false', $res
 $session->close();
 ```
 
-`Value` is a restricted mirror of `macula-go-sdk`'s `cbor.Value` --
+`Value` is a restricted mirror of `macula-go`'s `cbor.Value` --
 `Null`/`Int`/`Bytes`/`Text`/`Float` (no `List`/`Map` yet, the same v1
 cut `macula-rust-sdk-ffi`'s own `FfiValue` made — a payload needing
 structure today should be encoded as `Bytes`).
@@ -194,7 +194,7 @@ at all). Everything that needs an actual CONNECT/HELLO handshake —
 which is most of the wire protocol — is proven by the
 [examples](#examples) instead, run manually against the real
 production fleet, the same live-verification discipline
-`macula-go-sdk` and `macula-rust-sdk` both use.
+`macula-go` and `macula-rust-sdk` both use.
 
 ## Provider dispatch (unary RPC)
 
@@ -207,7 +207,7 @@ $pending->replyResult(Value::int($n * 2));
 ```
 
 Unlike every other primitive here, this can't be a single blocking
-call: `macula-go-sdk`'s own `Session.ServeOneCall` takes a Go closure
+call: `macula-go`'s own `Session.ServeOneCall` takes a Go closure
 as the handler and runs "wait, invoke, reply" as one atomic operation
 — PHP has nothing to hand across the FFI boundary in place of that
 closure. `cabi/serve.go` splits it instead: `macula_serve_wait_for_call`
@@ -247,7 +247,7 @@ daemon process, separate from whatever calls it), not a workaround
 adopted only for testing.
 
 **A second real gotcha found running these:** `Session::close()` tears
-down the whole QUIC connection immediately (`macula-go-sdk`'s own
+down the whole QUIC connection immediately (`macula-go`'s own
 `Session.Close` has no drain step). For unary RPC this is harmless —
 the caller only returns from `call()` after actually receiving the
 RESULT frame, so by the time either side closes, the exchange is
@@ -287,7 +287,7 @@ fails as a segfault, not a type error; flat scalar parameters carry no
 such risk. `Session` holds a PHP reference to the `KeyPair` it was
 connected with (and `StreamHandle` to the `KeyPair` it was
 opened/accepted with) for its whole lifetime — both because
-macula-go-sdk's own signing operations need the identity again on every
+macula-go's own signing operations need the identity again on every
 call, and because that reference keeps PHP's refcounting GC from
 freeing the identity out from under a still-open session/stream (their
 destruction order isn't otherwise guaranteed). Errors: functions that
@@ -310,7 +310,7 @@ $ php examples/02_call.php
 OBSERVED: got an ERROR (expected for a nonexistent procedure): code=1 name=unknown_next_peer
 
 $ php examples/03_publish_subscribe.php
-OBSERVED: received our own EVENT back: topic=... seq=1 delivered_via=direct payload=hello from macula-php-sdk
+OBSERVED: received our own EVENT back: topic=... seq=1 delivered_via=direct payload=hello from macula-php
 
 $ php examples/04_content.php
 put single block: mcid=...  single-block round trip OK
@@ -329,7 +329,7 @@ $ bash examples/07_run_stream_provider.sh
 [caller] received Eof
 ```
 
-Every empirical finding here matches `macula-go-sdk`'s and
+Every empirical finding here matches `macula-go`'s and
 `macula-rust-sdk`'s own live results exactly (`unknown_next_peer` for
 both an un-advertised CALL and an un-advertised STREAM_OPEN,
 `delivered_via=direct` for a subscriber receiving its own publish) —
@@ -356,20 +356,20 @@ bytes but on live protocol behavior.
 
 **Built and live-verified, feature-complete:** identity, CONNECT/HELLO,
 unary RPC (both roles), PubSub, content transfer, streaming RPC (both
-roles) — the same wire-protocol scope `macula-go-sdk` and
+roles) — the same wire-protocol scope `macula-go` and
 `macula-rust-sdk` cover, all driven through the full real stack from
 genuine PHP.
 
 **Not built, and out of scope for a leaf SDK entirely** (not a gap):
 DHT/HyParView/Plumtree gossip primitives — station-to-station overlay
-membership/broadcast, never a leaf-client concern; `macula-go-sdk`'s
+membership/broadcast, never a leaf-client concern; `macula-go`'s
 own spec says so explicitly.
 
 ## Related projects
 
 | Project | Description |
 |---|---|
-| [macula-go-sdk](https://github.com/macula-io/macula-go-sdk) | The Go SDK this repo binds to |
+| [macula-go](https://github.com/macula-io/macula-go) | The Go SDK this repo binds to |
 | [macula-rust-sdk](https://github.com/macula-io/macula-rust-sdk) | The Rust port — mobile bindings via UniFFI |
 | [macula](https://github.com/macula-io/macula) | The reference SDK (Erlang/OTP) |
 

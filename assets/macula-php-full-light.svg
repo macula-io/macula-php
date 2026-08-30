@@ -81,7 +81,7 @@
         letter-spacing="-0.5px">MACULA</text>
 
   <!-- Official PHP logo (php.net, CC BY-SA 4.0, Colin Viebrock) badge:
-       styled as an enlarged hub node, matching macula-go-sdk's gopher
+       styled as an enlarged hub node, matching macula-go's gopher
        and macula-rust-sdk's gear badge treatment. -->
   <defs>
     <clipPath clipPathUnits="userSpaceOnUse" id="php-clipPath3444">

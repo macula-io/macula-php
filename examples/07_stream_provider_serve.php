@@ -32,7 +32,7 @@ $handle->sendData(StreamEncoding::RAW, Value::bytes('hello from the provider'));
 $handle->closeSend();
 
 // Session::close() tears down the whole QUIC connection immediately
-// (macula-go-sdk's own Session.Close calls conn.CloseWithError with no
+// (macula-go's own Session.Close calls conn.CloseWithError with no
 // drain step) -- closing right after closeSend() can race the
 // STREAM_END frame closeSend() just queued, and the caller sees a hard
 // connection-level EOF instead of a graceful end-of-stream. In a real

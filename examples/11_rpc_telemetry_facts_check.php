@@ -6,7 +6,7 @@ declare(strict_types=1);
  * Confirms RPC telemetry auto-facts (rpc.sent_v1/rpc.completed_v1) fire
  * automatically underneath a plain call() -- this SDK adds no new
  * exported function for them; they're a side effect already baked into
- * macula-go-sdk's Session.Call, which macula_call already invokes
+ * macula-go's Session.Call, which macula_call already invokes
  * unmodified. Two sessions, two distinct identities: a watcher
  * subscribes to both topics under the SAME realm the call will use
  * BEFORE the call happens, then a separate caller session makes one call

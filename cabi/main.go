@@ -1,7 +1,7 @@
-// Package main is macula-php-sdk's C ABI layer: a thin cgo export
-// wrapping macula-go-sdk's existing blocking public API, built as a
+// Package main is macula-php's C ABI layer: a thin cgo export
+// wrapping macula-go's existing blocking public API, built as a
 // shared library (`go build -buildmode=c-shared`) for PHP's `ext-ffi`
-// to load directly. macula-go-sdk itself needs zero changes for this —
+// to load directly. macula-go itself needs zero changes for this —
 // this file is an ordinary consumer of its public API, same as any Go
 // program importing the module.
 //
@@ -17,7 +17,7 @@
 // returns a zero/negative sentinel; the caller must free it with
 // macula_free_string. On success `*err_out` is left untouched.
 //
-// Walking skeleton scope only, matching exactly what macula-go-sdk and
+// Walking skeleton scope only, matching exactly what macula-go and
 // macula-rust-sdk each proved first: identity generation, the
 // CONNECT/HELLO handshake, and close — live-verified against a real
 // station before anything else gets built on top.
@@ -36,16 +36,16 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/macula-io/macula-go-sdk/connection"
-	"github.com/macula-io/macula-go-sdk/identity"
-	"github.com/macula-io/macula-go-sdk/transport"
+	"github.com/macula-io/macula-go/connection"
+	"github.com/macula-io/macula-go/identity"
+	"github.com/macula-io/macula-go/transport"
 )
 
 var (
-	errInvalidIdentityHandle    = errors.New("macula-php-sdk/cabi: invalid identity handle")
-	errInvalidSessionHandle     = errors.New("macula-php-sdk/cabi: invalid session handle")
-	errInvalidStreamHandle      = errors.New("macula-php-sdk/cabi: invalid stream handle")
-	errInvalidPendingCallHandle = errors.New("macula-php-sdk/cabi: invalid pending-call handle")
+	errInvalidIdentityHandle    = errors.New("macula-php/cabi: invalid identity handle")
+	errInvalidSessionHandle     = errors.New("macula-php/cabi: invalid session handle")
+	errInvalidStreamHandle      = errors.New("macula-php/cabi: invalid stream handle")
+	errInvalidPendingCallHandle = errors.New("macula-php/cabi: invalid pending-call handle")
 )
 
 func setErr(errOut **C.char, err error) {

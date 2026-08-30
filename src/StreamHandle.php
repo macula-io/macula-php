@@ -7,7 +7,7 @@ namespace Macula;
 /**
  * A streaming RPC exchange -- caller (via Session::streamOpen()) or
  * provider (via Session::streamAccept()) role, the wire vocabulary is
- * symmetric either way. Wraps an opaque handle into macula-go-sdk's
+ * symmetric either way. Wraps an opaque handle into macula-go's
  * stream.Handle.
  *
  * Holds the KeyPair it was opened/accepted with, same reasoning as

@@ -9,9 +9,9 @@ import (
 	"runtime/cgo"
 	"time"
 
-	"github.com/macula-io/macula-go-sdk/connection"
-	"github.com/macula-io/macula-go-sdk/frame"
-	"github.com/macula-io/macula-go-sdk/identity"
+	"github.com/macula-io/macula-go/connection"
+	"github.com/macula-io/macula-go/frame"
+	"github.com/macula-io/macula-go/identity"
 )
 
 func sessionAndIdentity(sessionHandle, identityHandle C.uintptr_t) (*connection.Session, identity.KeyPair, error) {

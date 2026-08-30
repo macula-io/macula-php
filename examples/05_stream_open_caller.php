@@ -31,7 +31,7 @@ $deadlineMs = (int) (microtime(true) * 1000) + 10000;
 $handle = $session->streamOpen('macula_php_sdk.test_stream', $realm, StreamMode::CLIENT_STREAM, Value::null(), $deadlineMs);
 echo "opened dedicated stream, sent STREAM_OPEN\n";
 
-$handle->sendData(StreamEncoding::RAW, Value::bytes('hello from macula-php-sdk'));
+$handle->sendData(StreamEncoding::RAW, Value::bytes('hello from macula-php'));
 $handle->closeSend();
 
 try {

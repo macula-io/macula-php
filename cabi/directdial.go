@@ -10,9 +10,9 @@ import (
 	"runtime/cgo"
 	"time"
 
-	"github.com/macula-io/macula-go-sdk/directdial"
-	"github.com/macula-io/macula-go-sdk/frame"
-	"github.com/macula-io/macula-go-sdk/manifest"
+	"github.com/macula-io/macula-go/directdial"
+	"github.com/macula-io/macula-go/frame"
+	"github.com/macula-io/macula-go/manifest"
 )
 
 // macula_resolve_direct resolves procedure's currently-advertised serving
@@ -329,7 +329,7 @@ func macula_put_direct(
 // serving endpoint via a content_announcement DHT record (published only
 // by something independently-dialable, e.g. a station/relay -- a leaf SDK
 // identity cannot legitimately publish one, so there is no
-// macula_announce_content_direct in this SDK, matching macula-go-sdk's
+// macula_announce_content_direct in this SDK, matching macula-go's
 // own scope exactly).
 //
 //export macula_get_direct

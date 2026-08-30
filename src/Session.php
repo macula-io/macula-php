@@ -6,10 +6,10 @@ namespace Macula;
 
 /**
  * A handshaked connection to a macula-station. Wraps an opaque handle
- * into macula-go-sdk's connection.Session.
+ * into macula-go's connection.Session.
  *
  * Holds a reference to the KeyPair it was connected with for its whole
- * lifetime -- macula-go-sdk's own Close needs the identity again to
+ * lifetime -- macula-go's own Close needs the identity again to
  * sign the GOODBYE frame, and holding the reference also keeps PHP's
  * refcounting GC from freeing the identity out from under a still-open
  * session (their destruction order isn't otherwise guaranteed).
@@ -253,7 +253,7 @@ final class Session
      *
      * See PendingCall's own doc for why this is split into two steps
      * (wait, then reply) rather than one call taking a handler, the
-     * way macula-go-sdk's own Session.ServeOneCall works.
+     * way macula-go's own Session.ServeOneCall works.
      */
     public function serveWaitForCall(int $timeoutMs = 15000): PendingCall
     {
@@ -421,7 +421,7 @@ final class Session
      * e.g. one already returned by resolveDirect(), or known out of
      * band), dialing it directly. Unlike a procedure advertisement,
      * content storage has no "advertisement" step of its own to resolve
-     * first, matching macula-go-sdk's own PutDirect design.
+     * first, matching macula-go's own PutDirect design.
      */
     public function putDirect(string $station, string $data, string $name, int $timeoutMs = 15000): string
     {
@@ -443,7 +443,7 @@ final class Session
      * via a content_announcement DHT record -- published only by
      * something independently-dialable (e.g. a station/relay). A leaf
      * SDK identity cannot legitimately publish one, so there is no
-     * announceContentDirect() in this SDK, matching macula-go-sdk's own
+     * announceContentDirect() in this SDK, matching macula-go's own
      * scope exactly: this method can only succeed against content a
      * station/relay itself announced, not arbitrary putDirect() output.
      */

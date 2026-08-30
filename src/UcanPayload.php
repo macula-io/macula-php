@@ -6,7 +6,7 @@ namespace Macula;
 
 /**
  * A UCAN token's decoded claims -- returned by Ucan::verify()/decode().
- * Wraps an opaque handle into macula-go-sdk's ucan.Payload, freed
+ * Wraps an opaque handle into macula-go's ucan.Payload, freed
  * automatically when this object is destroyed.
  */
 final class UcanPayload

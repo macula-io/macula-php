@@ -9,9 +9,9 @@ import (
 	"runtime/cgo"
 	"time"
 
-	"github.com/macula-io/macula-go-sdk/cbor"
-	"github.com/macula-io/macula-go-sdk/connection"
-	"github.com/macula-io/macula-go-sdk/frame"
+	"github.com/macula-io/macula-go/cbor"
+	"github.com/macula-io/macula-go/connection"
+	"github.com/macula-io/macula-go/frame"
 )
 
 // pendingCall is the rendezvous point between the background goroutine

@@ -11,16 +11,16 @@ import (
 	"runtime/cgo"
 	"time"
 
-	"github.com/macula-io/macula-go-sdk/cbor"
-	"github.com/macula-io/macula-go-sdk/connection"
-	"github.com/macula-io/macula-go-sdk/frame"
-	"github.com/macula-io/macula-go-sdk/identity"
-	"github.com/macula-io/macula-go-sdk/ucan"
+	"github.com/macula-io/macula-go/cbor"
+	"github.com/macula-io/macula-go/connection"
+	"github.com/macula-io/macula-go/frame"
+	"github.com/macula-io/macula-go/identity"
+	"github.com/macula-io/macula-go/ucan"
 )
 
 // errCallRejectedByPolicy surfaces a UCAN policy rejection to PHP as a
 // distinguishable error -- see macula_serve_wait_for_call_gated's doc.
-var errCallRejectedByPolicy = errors.New("macula-php-sdk/cabi: inbound call refused by UCAN policy (no matching handler ever ran)")
+var errCallRejectedByPolicy = errors.New("macula-php/cabi: inbound call refused by UCAN policy (no matching handler ever ran)")
 
 // UCAN capabilities/proofs cross the FFI boundary as JSON strings, not a
 // new flat scalar tuple like payload values -- both are already
