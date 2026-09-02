@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue.svg)](#license)
 [![PHP](https://img.shields.io/badge/php-8.1%2B-777BB4?logo=php&logoColor=white)](https://php.net)
 [![Go](https://img.shields.io/badge/go-1.25%2B-00ADD8?logo=go)](https://go.dev)
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow.svg)](https://buymeacoffee.com/rlefever)
+[![GitHub Sponsors](https://img.shields.io/badge/GitHub%20Sponsors-support-ea4aaa.svg?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/rgfaber)
 
 <p align="center">
   <picture>
@@ -393,5 +393,5 @@ from this repo's own dual Apache-2.0/MIT license above.
 ---
 
 <p align="center">
-  <sub>Built with the BEAM's protocol, ported to PHP — <a href="https://buymeacoffee.com/rlefever">buy me a coffee</a> if this saved you some time</sub>
+  <sub>Built with the BEAM's protocol, ported to PHP — <a href="https://github.com/sponsors/rgfaber">sponsor the work</a> if this saved you some time</sub>
 </p>
