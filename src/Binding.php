@@ -156,6 +156,9 @@ final class Binding
                     unsigned char *realm_ca_pem, int realm_ca_pem_len, char *expected_org,
                     int payload_kind, long long payload_int, unsigned char *payload_bytes, int payload_bytes_len, double payload_float,
                     int timeout_ms, uintptr_t identity_handle, char **err_out);
+                uintptr_t macula_call_direct_with_ucan(uintptr_t resolve_via_session_handle, char *procedure, unsigned char *realm32,
+                    int payload_kind, long long payload_int, unsigned char *payload_bytes, int payload_bytes_len, double payload_float,
+                    int timeout_ms, uintptr_t identity_handle, unsigned char *ucan_token, int ucan_token_len, char **err_out);
                 void macula_advertise_direct(uintptr_t session_handle, char *procedure, unsigned char *realm32,
                     long long ttl_ms, uintptr_t identity_handle, char **err_out);
                 void macula_advertise_direct_with_cert_chain(uintptr_t session_handle, char *procedure, unsigned char *realm32,

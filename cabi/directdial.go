@@ -152,6 +152,45 @@ func macula_call_direct_with_cert_chain(
 	return C.uintptr_t(cgo.NewHandle(response))
 }
 
+// macula_call_direct_with_ucan is macula_call_direct, presenting a UCAN
+// token to a provider gated with `{ucan_required, Issuer}`. Every
+// hecate-om capability is advertised via advertise_direct, so this is the
+// only way a UCAN-gated capability is reachable through this SDK at all --
+// macula_call_direct itself has no token param, and macula_call_with_ucan
+// (rpc.go/ucan.go) is the plain, non-direct path, which cannot resolve a
+// direct-dial-only advertisement to begin with.
+//
+//export macula_call_direct_with_ucan
+func macula_call_direct_with_ucan(
+	resolveViaSessionHandle C.uintptr_t,
+	procedure *C.char,
+	realm32 *C.uchar,
+	payloadKind C.int, payloadInt C.longlong, payloadBytes *C.uchar, payloadBytesLen C.int, payloadFloat C.double,
+	timeoutMs C.int,
+	identityHandle C.uintptr_t,
+	ucanToken *C.uchar, ucanTokenLen C.int,
+	errOut **C.char,
+) C.uintptr_t {
+	session, id, err := sessionAndIdentity(resolveViaSessionHandle, identityHandle)
+	if err != nil {
+		setErr(errOut, err)
+		return 0
+	}
+	payload := phpValueToGo(payloadKind, payloadInt, payloadBytes, payloadBytesLen, payloadFloat)
+	timeout := time.Duration(timeoutMs) * time.Millisecond
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	response, err := directdial.CallWithUCAN(
+		ctx, session, id, bytes32FromC(realm32), C.GoString(procedure),
+		payload, timeout, cBytesToGo(ucanToken, ucanTokenLen),
+	)
+	if err != nil {
+		setErr(errOut, err)
+		return 0
+	}
+	return C.uintptr_t(cgo.NewHandle(response))
+}
+
 // macula_advertise_direct publishes a signed procedure_advertisement DHT
 // record naming session_handle's own currently-connected station as
 // procedure's server, discoverable by any caller's resolve/call_direct.

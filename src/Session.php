@@ -371,6 +371,28 @@ final class Session
     }
 
     /**
+     * callDirect(), presenting $ucanToken to a provider gated with
+     * `{ucan_required, Issuer}`. Every hecate-om capability is advertised
+     * via advertiseDirect(), so this is the only way this SDK can reach a
+     * UCAN-gated capability at all -- callDirect() has no token
+     * parameter, and callWithUcan() is the plain, non-direct path, which
+     * cannot resolve a direct-dial-only advertisement to begin with.
+     */
+    public function callDirectWithUcan(string $procedure, string $realm, Value $payload, string $ucanToken, int $timeoutMs = 15000): CallResponse
+    {
+        $ffi = Binding::get();
+        $realmBuf = Binding::cBytes($realm);
+        $payloadBuf = Binding::cBytes($payload->bytesValue);
+        $tokenBuf = Binding::cBytes($ucanToken);
+        $handle = Binding::withErrOut(fn ($errOut) => $ffi->macula_call_direct_with_ucan(
+            $this->handleOrFail(), $procedure, $realmBuf,
+            $payload->kind, $payload->intValue, $payloadBuf, strlen($payload->bytesValue), $payload->floatValue,
+            $timeoutMs, $this->identity->handleOrFail(), $tokenBuf, strlen($ucanToken), $errOut,
+        ));
+        return new CallResponse($handle);
+    }
+
+    /**
      * Publishes a signed procedure_advertisement DHT record naming this
      * session's own currently-connected station as $procedure's server,
      * discoverable by any caller's resolveDirect()/callDirect(). One-shot:
