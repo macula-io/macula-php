@@ -212,7 +212,6 @@ func parseSeedsCSV(csv string) ([]connection.Seed, error) {
 	return seeds, nil
 }
 
-//export macula_connect_seeds
 // macula_connect_seeds is macula_connect's multi-station counterpart:
 // seedsCSV is "host1[:port1],host2[:port2],..." (see parseSeedsCSV),
 // tried in order via connection.ConnectSeeds -- the first that
@@ -222,6 +221,8 @@ func parseSeedsCSV(csv string) ([]connection.Seed, error) {
 // string parameter doesn't need, and this package's own scope is
 // deliberately a thin walking skeleton over macula-go's public API,
 // not new cross-language array-passing machinery.
+//
+//export macula_connect_seeds
 func macula_connect_seeds(seedsCSV *C.char, identityHandle C.uintptr_t, timeoutMs C.int, errOut **C.char) C.uintptr_t {
 	id, ok := cgo.Handle(identityHandle).Value().(identity.KeyPair)
 	if !ok {
