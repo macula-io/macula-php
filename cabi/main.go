@@ -32,7 +32,11 @@ import "C"
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net"
 	"runtime/cgo"
+	"strconv"
+	"strings"
 	"time"
 	"unsafe"
 
@@ -167,6 +171,74 @@ func macula_connect(host *C.char, port C.uint16_t, identityHandle C.uintptr_t, t
 	defer cancel()
 
 	session, err := connection.Connect(ctx, C.GoString(host), uint16(port), transport.WebPKI{}, id)
+	if err != nil {
+		setErr(errOut, err)
+		return 0
+	}
+	return C.uintptr_t(cgo.NewHandle(session))
+}
+
+// parseSeedsCSV parses "host1[:port1],host2[:port2],..." into an
+// ordered candidate list -- port defaults to 4433 (macula-station's
+// standard QUIC port across the demo fleet) when omitted, matching
+// macula-cli's own parseHostPort. Blank entries (from a stray comma)
+// are skipped rather than erroring, so trailing/doubled commas from a
+// PHP-side implode() aren't a footgun.
+func parseSeedsCSV(csv string) ([]connection.Seed, error) {
+	parts := strings.Split(csv, ",")
+	seeds := make([]connection.Seed, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		host, portStr, err := net.SplitHostPort(p)
+		if err != nil {
+			// No port present at all -- net.SplitHostPort's own error for
+			// that case is indistinguishable from a real syntax error
+			// without string-matching it, so just retry as host-only.
+			seeds = append(seeds, connection.Seed{Host: p, Port: 4433})
+			continue
+		}
+		port, err := strconv.ParseUint(portStr, 10, 16)
+		if err != nil {
+			return nil, fmt.Errorf("macula-php/cabi: invalid port in seed %q: %w", p, err)
+		}
+		seeds = append(seeds, connection.Seed{Host: host, Port: uint16(port)})
+	}
+	if len(seeds) == 0 {
+		return nil, errors.New("macula-php/cabi: macula_connect_seeds requires at least one non-empty seed")
+	}
+	return seeds, nil
+}
+
+//export macula_connect_seeds
+// macula_connect_seeds is macula_connect's multi-station counterpart:
+// seedsCSV is "host1[:port1],host2[:port2],..." (see parseSeedsCSV),
+// tried in order via connection.ConnectSeeds -- the first that
+// answers wins. A single delimited string rather than a char** array:
+// PHP's ext-ffi has no reliable way to marshal an array of C strings
+// across this boundary without inventing bespoke plumbing a plain
+// string parameter doesn't need, and this package's own scope is
+// deliberately a thin walking skeleton over macula-go's public API,
+// not new cross-language array-passing machinery.
+func macula_connect_seeds(seedsCSV *C.char, identityHandle C.uintptr_t, timeoutMs C.int, errOut **C.char) C.uintptr_t {
+	id, ok := cgo.Handle(identityHandle).Value().(identity.KeyPair)
+	if !ok {
+		setErr(errOut, errInvalidIdentityHandle)
+		return 0
+	}
+
+	seeds, err := parseSeedsCSV(C.GoString(seedsCSV))
+	if err != nil {
+		setErr(errOut, err)
+		return 0
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMs)*time.Millisecond)
+	defer cancel()
+
+	session, err := connection.ConnectSeeds(ctx, seeds, transport.WebPKI{}, id)
 	if err != nil {
 		setErr(errOut, err)
 		return 0

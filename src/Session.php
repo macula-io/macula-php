@@ -49,6 +49,35 @@ final class Session
     }
 
     /**
+     * connect()'s multi-station counterpart: tries each of $seeds in
+     * order (macula-go's own connection.ConnectSeeds), returning the
+     * first that answers -- for a caller that wants to survive one
+     * station being down without failing outright, the same fallback
+     * macula-cli's own -seed flag gives every direct-dial command.
+     * $timeoutMs still bounds the whole operation, across every seed
+     * tried, not each one individually.
+     *
+     * @param string[] $seeds "host[:port]" strings, port defaults to 4433 when omitted; tried in order, at least one required.
+     */
+    public static function connectSeeds(array $seeds, KeyPair $identity, int $timeoutMs = 15000): self
+    {
+        if ($seeds === []) {
+            throw new \InvalidArgumentException('connectSeeds requires at least one seed');
+        }
+        $ffi = Binding::get();
+        $handle = Binding::withErrOut(
+            fn (\FFI\CData $errOut) => $ffi->macula_connect_seeds(
+                implode(',', $seeds),
+                $identity->handleOrFail(),
+                $timeoutMs,
+                $errOut,
+            )
+        );
+
+        return self::fromHandle($handle, $identity);
+    }
+
+    /**
      * Wraps a raw session handle already produced by a successful
      * handshake -- used by connect() itself, and by every direct-dial
      * method that dials a NEW connection to a resolved station

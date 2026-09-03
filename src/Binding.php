@@ -38,6 +38,7 @@ final class Binding
                 int macula_identity_private_bytes(uintptr_t identity_handle, unsigned char *out32);
                 void macula_identity_free(uintptr_t identity_handle);
                 uintptr_t macula_connect(char *host, uint16_t port, uintptr_t identity_handle, int timeout_ms, char **err_out);
+                uintptr_t macula_connect_seeds(char *seeds_csv, uintptr_t identity_handle, int timeout_ms, char **err_out);
                 int macula_session_accepted(uintptr_t session_handle);
                 int macula_session_station_node_id(uintptr_t session_handle, unsigned char *out32);
                 void macula_session_close(uintptr_t session_handle, uintptr_t identity_handle);

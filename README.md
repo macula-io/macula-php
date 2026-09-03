@@ -145,6 +145,13 @@ printf("is_error=%s payload=%s\n", $response->isError() ? 'true' : 'false', $res
 $session->close();
 ```
 
+`Session::connectSeeds(['host1:port', 'host2:port', ...], $identity)` is
+`connect()`'s multi-station counterpart (`examples/12_connect_seeds.php`):
+tries each candidate in order, returns the first that answers -- for a
+caller that wants to survive one station being down without failing
+outright, matching the fallback macula-cli's own `-seed` flag gives
+every direct-dial command.
+
 `Value` is a restricted mirror of `macula-go`'s `cbor.Value` --
 `Null`/`Int`/`Bytes`/`Text`/`Float` (no `List`/`Map` yet, the same v1
 cut `macula-rust-ffi`'s own `FfiValue` made — a payload needing
