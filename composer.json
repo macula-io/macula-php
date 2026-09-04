@@ -4,7 +4,7 @@
     "type": "library",
     "keywords": ["macula", "mesh", "quic", "rpc", "pubsub", "ffi", "wire-protocol"],
     "homepage": "https://github.com/macula-io/macula-php",
-    "license": ["Apache-2.0", "MIT"],
+    "license": "Apache-2.0",
     "authors": [
         {
             "name": "Macula",
