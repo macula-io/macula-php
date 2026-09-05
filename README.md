@@ -134,16 +134,23 @@ require 'vendor/autoload.php';
 
 use Macula\KeyPair;
 use Macula\Session;
-use Macula\Value;
 
 $identity = KeyPair::generate(); // puzzle-hardened by construction
 $session = Session::connect('station-de-frankfurt.macula.io', 4433, $identity);
-
-$response = $session->call('io.macula.echo', str_repeat("\x00", 32), Value::text('hello'));
-printf("is_error=%s payload=%s\n", $response->isError() ? 'true' : 'false', $response->payload()->asText());
+printf("accepted: %s\nstation node_id: %s\n", $session->accepted ? 'true' : 'false', bin2hex($session->stationNodeId));
 
 $session->close();
 ```
+
+This is exactly what `examples/01_handshake.php` above runs -- connect,
+confirm the station accepted the handshake, close. For a real RPC round
+trip (advertise a procedure, call it, get a RESULT back), see
+[Provider dispatch (unary RPC)](#provider-dispatch-unary-rpc) below:
+unlike the other SDKs in this family, a single PHP process can't safely
+both advertise/serve AND call in the same script (`fork()` after loading
+the cgo-backed shared library isn't safe for the child -- see
+[Two-process pattern](#two-process-pattern-for-provider-role-examples)),
+so that example is genuinely two real processes, not one script.
 
 `Session::connectSeeds(['host1:port', 'host2:port', ...], $identity)` is
 `connect()`'s multi-station counterpart (`examples/12_connect_seeds.php`):
