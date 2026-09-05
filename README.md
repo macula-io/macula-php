@@ -3,7 +3,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/macula-io/macula-php/ci.yml?branch=main&label=CI)](https://github.com/macula-io/macula-php/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](#license)
 [![PHP](https://img.shields.io/badge/php-8.1%2B-777BB4?logo=php&logoColor=white)](https://php.net)
-[![Go](https://img.shields.io/badge/go-1.25%2B-00ADD8?logo=go)](https://go.dev)
+[![Go](https://img.shields.io/badge/go-1.26%2B-00ADD8?logo=go)](https://go.dev)
 [![GitHub Sponsors](https://img.shields.io/badge/GitHub%20Sponsors-support-ea4aaa.svg?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/rgfaber)
 
 <p align="center">
@@ -73,7 +73,7 @@ command and never touch Go again. If you don't have Go installed:
   [go.dev/dl](https://go.dev/dl/) and follow its instructions, or
 - **macOS**: `brew install go`
 - **Debian/Ubuntu**: `sudo apt install golang-go` (check the version is
-  ≥ 1.25 — if your distro's package is older, use the go.dev installer
+  ≥ 1.26 — if your distro's package is older, use the go.dev installer
   instead)
 - **Arch**: `sudo pacman -S go`
 - **Fedora**: `sudo dnf install golang`
@@ -187,6 +187,10 @@ cd cabi && go build -buildmode=c-shared -o libmacula.so . && cd ..
 composer install
 composer test   # or: vendor/bin/phpunit
 ```
+
+Running the suite needs PHP ≥ 8.3 (PHPUnit 12's own floor); the library
+itself stays ≥ 8.1 — `phpunit/phpunit` is a require-dev, so it never
+constrains a consumer installing without `--no-dev`.
 
 `tests/` is an **offline** PHPUnit suite — no network, no live station,
 runs in CI on every push. It's not testing everything the examples
@@ -353,7 +357,7 @@ bytes but on live protocol behavior.
   `--with-ffi` (**not** `--enable-ffi` — that flag doesn't exist and is
   silently ignored by `configure`, which was this repo's own first
   mistake building it).
-- Go ≥ 1.25 and a C compiler (`cgo` requirement) to build `cabi/` —
+- Go ≥ 1.26 and a C compiler (`cgo` requirement) to build `cabi/` —
   see [New to Go?](#new-to-go-youll-never-write-any) above if you don't
   have it installed; you'll run one build command and never touch Go
   again.
