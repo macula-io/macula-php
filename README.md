@@ -200,19 +200,39 @@ itself stays ≥ 8.1 — `phpunit/phpunit` is a require-dev, so it never
 constrains a consumer installing without `--no-dev`.
 
 `tests/` is an **offline** PHPUnit suite — no network, no live station,
-runs in CI on every push. It's not testing everything the examples
-above prove; it's testing what's actually testable without a real
-station: `Value` construction (pure PHP), `Binding`'s marshaling
-helpers (`valueFromParts()`, `cBytes()` — the latter does load
-`libmacula.so` and allocate a real C buffer, but never opens a
-connection), and `KeyPair` lifecycle (`generate()`/`nodeId()`/`free()`
-against the real compiled library — Ed25519 keygen and S/Kademlia
-puzzle-hardening are entirely local computation, no network involved
-at all). Everything that needs an actual CONNECT/HELLO handshake —
-which is most of the wire protocol — is proven by the
-[examples](#examples) instead, run manually against the real
-production fleet, the same live-verification discipline
-`macula-go` and `macula-rust` both use.
+runs in CI on every push (`defaultTestSuite="offline"` in
+`phpunit.xml`, so a bare `composer test`/`vendor/bin/phpunit` never
+touches the network). It's not testing everything the examples above
+prove; it's testing what's actually testable without a real station:
+`Value` construction (pure PHP), `Binding`'s marshaling helpers
+(`valueFromParts()`, `cBytes()` — the latter does load `libmacula.so`
+and allocate a real C buffer, but never opens a connection), and
+`KeyPair` lifecycle (`generate()`/`nodeId()`/`free()` against the real
+compiled library — Ed25519 keygen and S/Kademlia puzzle-hardening are
+entirely local computation, no network involved at all).
+
+`tests/live/` is a second, real-assertion PHPUnit suite against the
+real production fleet — genuine regression coverage (not a manually
+narrated walkthrough like the examples), run explicitly, never
+automatically:
+
+```bash
+composer test:live   # or: vendor/bin/phpunit, testsuite live
+```
+
+Two real `Session`s (two identities) in one process, sequential calls,
+no `pcntl_fork()` and no goroutine-style concurrency needed — see
+`tests/live/ClientStreamLiveTest.php`'s own doc comment for why that's
+safe and sufficient here. It currently exercises ClientStream mode's
+real caller/provider/reply round trip (the first functional proof this
+SDK's streaming half of the wire protocol round-trips at all against a
+real provider), skipping rather than failing on a specific, named,
+still-intermittent macula-station relay bug it was written to catch.
+
+Everything else that needs an actual CONNECT/HELLO handshake is proven
+by the [examples](#examples) instead, run manually against the real
+production fleet, the same live-verification discipline `macula-go`
+and `macula-rust` both use.
 
 ## Provider dispatch (unary RPC)
 

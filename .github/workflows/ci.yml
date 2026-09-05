@@ -44,13 +44,15 @@ jobs:
       # artifact between jobs) because it's a ~10s step and keeps this
       # job self-contained.
       - run: cd cabi && go build -buildmode=c-shared -o libmacula.so .
-      # Offline only -- exercises pure PHP logic (Value, Binding's
-      # marshaling helpers) and real FFI/cgo mechanics that need no
-      # network (identity generation is local Ed25519 keygen + puzzle
-      # grinding). The actual live examples (01-07) all dial the real
-      # production fleet, which has no uptime guarantee and must never
-      # block an unrelated PR -- same convention macula-go and
-      # macula-rust both use for their own live-tagged tests. Run
-      # those manually:
+      # Offline only (defaultTestSuite="offline" in phpunit.xml) --
+      # exercises pure PHP logic (Value, Binding's marshaling helpers)
+      # and real FFI/cgo mechanics that need no network (identity
+      # generation is local Ed25519 keygen + puzzle grinding). The
+      # examples (01-13) and tests/live's own real-assertion suite all
+      # dial the real production fleet, which has no uptime guarantee
+      # and must never block an unrelated PR -- same convention
+      # macula-go and macula-rust both use for their own live-tagged
+      # tests. Run those manually:
       #   php examples/01_handshake.php
+      #   composer test:live
       - run: vendor/bin/phpunit

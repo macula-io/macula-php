@@ -3,19 +3,36 @@
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
          bootstrap="vendor/autoload.php"
          colors="true"
-         cacheDirectory=".phpunit.cache">
+         cacheDirectory=".phpunit.cache"
+         defaultTestSuite="offline">
     <!--
-        Offline only: no network, no live station. Everything here
-        either exercises pure PHP logic (Value, Binding's marshaling
-        helpers) or real FFI/cgo mechanics that don't touch the network
-        at all (identity generation is local Ed25519 keygen plus
-        puzzle grinding). Anything that needs a real CONNECT/HELLO
-        handshake lives in examples/ instead, run manually against the
-        real production fleet, see README.md's "Examples" section.
+        Two testsuites, deliberately NOT run together by a bare
+        `phpunit`/`composer test`: defaultTestSuite="offline" above is
+        load bearing. Without it, PHPUnit runs every declared testsuite
+        by default, which would make ordinary `composer test`/CI touch
+        the real network the moment a `live` suite existed at all.
+
+        offline: no network, no live station. Everything here either
+        exercises pure PHP logic (Value, Binding's marshaling helpers)
+        or real FFI/cgo mechanics that don't touch the network at all
+        (identity generation is local Ed25519 keygen plus puzzle
+        grinding). Runs in CI on every push.
+
+        live: real CONNECT/HELLO handshakes against the real production
+        fleet (station-de-frankfurt.macula.io), with real assertions,
+        not run automatically. Run explicitly with `composer test:live`
+        (or `vendor/bin/phpunit`, testsuite live). examples/ still exists
+        for hand-run, narrated walkthroughs of one wire primitive at a
+        time; tests/live is for genuine regression coverage of behavior
+        this SDK depends on actually working end to end.
     -->
     <testsuites>
         <testsuite name="offline">
             <directory>tests</directory>
+            <exclude>tests/live</exclude>
+        </testsuite>
+        <testsuite name="live">
+            <directory>tests/live</directory>
         </testsuite>
     </testsuites>
     <source>

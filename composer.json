@@ -33,6 +33,7 @@
         "phpunit/phpunit": "^12"
     },
     "scripts": {
-        "test": "phpunit"
+        "test": "phpunit",
+        "test:live": "phpunit --testsuite=live"
     }
 }
