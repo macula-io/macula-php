@@ -181,5 +181,5 @@ func macula_pending_call_reply_error(pendingHandle C.uintptr_t, detail *C.char, 
 
 //export macula_pending_call_free
 func macula_pending_call_free(pendingHandle C.uintptr_t) {
-	cgo.Handle(pendingHandle).Delete()
+	safeDeleteHandle(cgo.Handle(pendingHandle))
 }

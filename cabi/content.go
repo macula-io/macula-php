@@ -88,5 +88,5 @@ func macula_bytes_handle_read(bytesHandle C.uintptr_t, out *C.uchar) {
 
 //export macula_bytes_handle_free
 func macula_bytes_handle_free(bytesHandle C.uintptr_t) {
-	cgo.Handle(bytesHandle).Delete()
+	safeDeleteHandle(cgo.Handle(bytesHandle))
 }

@@ -19,6 +19,49 @@ final class KeyPair
         $this->handle = $handle;
     }
 
+    /**
+     * PHP shallow-copies $handle into the clone before running this
+     * method, so the clone already holds a live copy of the same raw
+     * handle at this point -- if left alone, its own __destruct() would
+     * free the ORIGINAL's handle out from under it the moment this
+     * throw unwinds and the clone (never assigned to a variable) is
+     * discarded. Null it first so that free() is a no-op on the clone,
+     * THEN throw -- the exception must not depend on which line runs
+     * first, since either order without both steps still crashes on a
+     * build without the cabi-side recover() (safeDeleteHandle in
+     * cabi/main.go): a double free() on an already-deleted cgo.Handle
+     * panics on the Go side, which is fatal to the whole process if
+     * unrecovered. This PHP-side guard remains the primary defense --
+     * it fails fast with a catchable exception instead of relying on
+     * that recover() at all.
+     */
+    public function __clone(): never
+    {
+        $this->handle = null;
+        throw new \LogicException('KeyPair cannot be cloned -- each instance owns a unique FFI handle');
+    }
+
+    /**
+     * serialize()/unserialize() is a second door to the exact same bug
+     * clone() has: it copies $handle by value into the serialized
+     * representation, and unserialize() would hand back a second live
+     * object holding that same raw handle -- reachable via ordinary PHP
+     * ($_SESSION, an object cache, a queue payload), no reflection
+     * needed. Block both directions; the handle isn't meaningful across
+     * requests/processes anyway. Persist the identity by value instead:
+     * fromSeedBytes(privateBytes()) reconstructs an equivalent KeyPair.
+     */
+    public function __serialize(): never
+    {
+        throw new \LogicException('KeyPair cannot be serialized -- persist privateBytes() and rebuild with fromSeedBytes()');
+    }
+
+    /** @param array<mixed> $data */
+    public function __unserialize(array $data): never
+    {
+        throw new \LogicException('KeyPair cannot be unserialized -- persist privateBytes() and rebuild with fromSeedBytes()');
+    }
+
     public static function generate(): self
     {
         $ffi = Binding::get();

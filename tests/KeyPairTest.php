@@ -71,4 +71,59 @@ final class KeyPairTest extends TestCase
         $identity->free(); // must not throw or double-free the underlying handle
         $this->addToAssertionCount(1);
     }
+
+    /**
+     * PHP's clone shallow-copies $handle into a second object before
+     * __clone() runs. Without __clone() nulling that copy before
+     * throwing, the doomed clone (never assigned to a variable, so
+     * immediately destructed when the throw unwinds the expression)
+     * would free the ORIGINAL's handle out from under it -- the
+     * original's own later free() then double-frees an already-deleted
+     * cgo.Handle, which panics on the Go side. cabi/main.go's
+     * safeDeleteHandle recovers that panic so it no longer kills the
+     * whole PHP process, but this PHP-side guard is what turns the
+     * misuse into a normal catchable exception instead of a silent
+     * handle mixup.
+     */
+    public function testCloneThrowsAndLeavesOriginalUsable(): void
+    {
+        $identity = KeyPair::generate();
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('cannot be cloned');
+        try {
+            clone $identity;
+        } finally {
+            // Runs even though the expected exception is still pending --
+            // proves the original survived the failed clone attempt.
+            $this->assertSame(32, strlen($identity->nodeId()));
+        }
+    }
+
+    /**
+     * serialize()/unserialize() is a second door to the exact same bug
+     * clone() guards against: it copies $handle by value into the
+     * serialized string, and unserialize() would hand back a second
+     * live object holding that same raw handle -- reachable via
+     * ordinary PHP ($_SESSION, an object cache, a queue payload), no
+     * reflection needed, and no clone() call anywhere in sight.
+     */
+    public function testSerializeThrows(): void
+    {
+        $identity = KeyPair::generate();
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('cannot be serialized');
+        serialize($identity);
+    }
+
+    /** A hand-crafted serialized blob must be rejected too, not just serialize() of a live instance. */
+    public function testUnserializeThrows(): void
+    {
+        $blob = 'O:14:"Macula\KeyPair":1:{s:22:"' . "\0" . 'Macula\KeyPair' . "\0" . 'handle";i:1;}';
+
+        $this->expectException(\LogicException::class);
+        $this->expectExceptionMessage('cannot be unserialized');
+        unserialize($blob);
+    }
 }

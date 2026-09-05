@@ -140,7 +140,7 @@ func macula_stream_open_info_caller(infoHandle C.uintptr_t, out32 *C.uchar) {
 
 //export macula_stream_open_info_free
 func macula_stream_open_info_free(infoHandle C.uintptr_t) {
-	cgo.Handle(infoHandle).Delete()
+	safeDeleteHandle(cgo.Handle(infoHandle))
 }
 
 //export macula_stream_send_data
@@ -280,7 +280,7 @@ func macula_stream_item_body_bytes(itemHandle C.uintptr_t, out *C.uchar) {
 
 //export macula_stream_item_free
 func macula_stream_item_free(itemHandle C.uintptr_t) {
-	cgo.Handle(itemHandle).Delete()
+	safeDeleteHandle(cgo.Handle(itemHandle))
 }
 
 //export macula_stream_await_reply
@@ -341,7 +341,7 @@ func macula_stream_reply_responded_by(replyHandle C.uintptr_t, out32 *C.uchar) {
 
 //export macula_stream_reply_free
 func macula_stream_reply_free(replyHandle C.uintptr_t) {
-	cgo.Handle(replyHandle).Delete()
+	safeDeleteHandle(cgo.Handle(replyHandle))
 }
 
 //export macula_stream_abort
@@ -359,5 +359,5 @@ func macula_stream_abort(streamHandle C.uintptr_t, code *C.char, message *C.char
 
 //export macula_stream_free
 func macula_stream_free(streamHandle C.uintptr_t) {
-	cgo.Handle(streamHandle).Delete()
+	safeDeleteHandle(cgo.Handle(streamHandle))
 }

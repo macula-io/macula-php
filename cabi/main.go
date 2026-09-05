@@ -110,6 +110,28 @@ func macula_free_string(s *C.char) {
 	C.free(unsafe.Pointer(s))
 }
 
+// safeDeleteHandle deletes h, recovering a panic instead of letting it
+// propagate. cgo.Handle.Delete (like .Value) panics on an
+// already-deleted or otherwise invalid handle, and an unrecovered
+// panic inside any cgo-exported function is fatal to the WHOLE host
+// process -- Go's panic unwinding doesn't stop at the C caller, it
+// terminates the process outright, taking down every other in-flight
+// request this same PHP process happens to be serving, not just the
+// one holding the bad handle.
+//
+// The PHP side is the primary guard (every wrapper class nulls its own
+// handle after freeing and rejects further use via handleOrFail(),
+// and __clone() on every one of them explicitly nulls the clone's copy
+// before throwing -- see e.g. KeyPair::__clone()). This is defense in
+// depth for whatever that tracking doesn't catch: a double-free must
+// cost nothing, never the whole process, same principle as
+// macula-go's own pool.deliverOne recovering a subscriber handler's
+// panic so one bad callback doesn't kill every other subscriber.
+func safeDeleteHandle(h cgo.Handle) {
+	defer func() { recover() }()
+	h.Delete()
+}
+
 //export macula_identity_generate
 func macula_identity_generate(errOut **C.char) C.uintptr_t {
 	id, err := identity.Generate()
@@ -156,7 +178,7 @@ func macula_identity_private_bytes(identityHandle C.uintptr_t, out32 *C.uchar) C
 
 //export macula_identity_free
 func macula_identity_free(identityHandle C.uintptr_t) {
-	cgo.Handle(identityHandle).Delete()
+	safeDeleteHandle(cgo.Handle(identityHandle))
 }
 
 //export macula_connect
@@ -272,14 +294,32 @@ func macula_session_station_node_id(sessionHandle C.uintptr_t, out32 *C.uchar) C
 
 //export macula_session_close
 func macula_session_close(sessionHandle C.uintptr_t, identityHandle C.uintptr_t) {
+	// safeDeleteHandle is deferred FIRST (so it runs LAST -- defers are
+	// LIFO) and unconditionally, before sessionHandle has even been
+	// validated: if the recover() below fires partway through (e.g. an
+	// invalid identityHandle), execution would otherwise return without
+	// ever reaching a trailing Delete() call, leaking the session
+	// handle (and its still-open QUIC connection) forever. Ordering
+	// this defer outermost means the handle gets deleted regardless of
+	// where -- or whether -- a panic happened above it; safeDeleteHandle
+	// has its own recover() too, so this is safe even if sessionHandle
+	// itself turns out to be invalid.
+	defer safeDeleteHandle(cgo.Handle(sessionHandle))
+	// Recovers a panic from EITHER .Value() call below (an invalid
+	// sessionHandle or identityHandle) -- see safeDeleteHandle's doc for
+	// why an unrecovered panic here is fatal to the whole process, not
+	// just this call.
+	defer func() { recover() }()
+
 	session, ok := cgo.Handle(sessionHandle).Value().(*connection.Session)
-	if ok {
-		id, idOk := cgo.Handle(identityHandle).Value().(identity.KeyPair)
-		if idOk {
-			_ = session.Close("normal", nil, id)
-		}
+	if !ok {
+		return
 	}
-	cgo.Handle(sessionHandle).Delete()
+	id, idOk := cgo.Handle(identityHandle).Value().(identity.KeyPair)
+	if !idOk {
+		return
+	}
+	_ = session.Close("normal", nil, id)
 }
 
 func main() {} // required by -buildmode=c-shared, never actually run

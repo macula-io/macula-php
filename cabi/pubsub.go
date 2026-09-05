@@ -183,5 +183,5 @@ func macula_event_payload_bytes(eventHandle C.uintptr_t, out *C.uchar) {
 
 //export macula_event_free
 func macula_event_free(eventHandle C.uintptr_t) {
-	cgo.Handle(eventHandle).Delete()
+	safeDeleteHandle(cgo.Handle(eventHandle))
 }

@@ -169,7 +169,7 @@ func macula_ucan_payload_proofs_json(payloadHandle C.uintptr_t) *C.char {
 
 //export macula_ucan_payload_free
 func macula_ucan_payload_free(payloadHandle C.uintptr_t) {
-	cgo.Handle(payloadHandle).Delete()
+	safeDeleteHandle(cgo.Handle(payloadHandle))
 }
 
 // The minted token is plain []byte -- read it back with the existing

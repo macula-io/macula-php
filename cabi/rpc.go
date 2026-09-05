@@ -130,5 +130,5 @@ func macula_response_error_detail(responseHandle C.uintptr_t) *C.char {
 
 //export macula_response_free
 func macula_response_free(responseHandle C.uintptr_t) {
-	cgo.Handle(responseHandle).Delete()
+	safeDeleteHandle(cgo.Handle(responseHandle))
 }
