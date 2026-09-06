@@ -125,32 +125,47 @@ tests/          Offline PHPUnit suite -- no network, no live station.
 ```bash
 cd cabi && go build -buildmode=c-shared -o libmacula.so . && cd ..
 composer install
-php examples/01_handshake.php
+bash examples/00_run_quickstart.sh
 ```
 
+Also lives as a runnable example -- `bash examples/00_run_quickstart.sh`.
+Advertises and calls its own trivial echo procedure (two identities, a
+provider and a caller, since a station kicks a connection the instant a
+second one arrives under the same identity) rather than depending on any
+particular procedure already being advertised on the fleet. Unlike the
+other SDKs in this family, this is genuinely **two real OS processes**,
+not one script or two Sessions in one process: `fork()` after loading the
+cgo-backed shared library isn't safe for continued execution in the child
+-- see [Two-process pattern](#two-process-pattern-for-provider-role-examples)
+for why. `00_run_quickstart.sh` generates the procedure name and realm,
+launches the provider (`00_quickstart_serve.php`) in the background, then
+the caller (`00_quickstart_call.php`) in the foreground:
+
 ```php
-<?php
-require 'vendor/autoload.php';
-
-use Macula\KeyPair;
-use Macula\Session;
-
-$identity = KeyPair::generate(); // puzzle-hardened by construction
+// 00_quickstart_serve.php -- provider half
+$identity = KeyPair::generate();
 $session = Session::connect('station-de-frankfurt.macula.io', 4433, $identity);
-printf("accepted: %s\nstation node_id: %s\n", $session->accepted ? 'true' : 'false', bin2hex($session->stationNodeId));
+$session->advertise($procedure, $realm);
+
+$pending = $session->serveWaitForCall(15000);
+$pending->replyResult($pending->payload()); // echo, unchanged
 
 $session->close();
 ```
 
-This is exactly what `examples/01_handshake.php` above runs -- connect,
-confirm the station accepted the handshake, close. For a real RPC round
-trip (advertise a procedure, call it, get a RESULT back), see
-[Provider dispatch (unary RPC)](#provider-dispatch-unary-rpc) below:
-unlike the other SDKs in this family, a single PHP process can't safely
-both advertise/serve AND call in the same script (`fork()` after loading
-the cgo-backed shared library isn't safe for the child -- see
-[Two-process pattern](#two-process-pattern-for-provider-role-examples)),
-so that example is genuinely two real processes, not one script.
+```php
+// 00_quickstart_call.php -- caller half
+$identity = KeyPair::generate();
+$session = Session::connect('station-de-frankfurt.macula.io', 4433, $identity);
+
+$response = $session->call($procedure, $realm, Value::text('hello'), 10000);
+printf("call response: %s\n", $response->payload()->asText());
+
+$session->close();
+```
+
+For the simplest possible one-script example (a bare handshake, no RPC),
+see `examples/01_handshake.php` in the table below.
 
 `Session::connectSeeds(['host1:port', 'host2:port', ...], $identity)` is
 `connect()`'s multi-station counterpart (`examples/12_connect_seeds.php`):
@@ -172,6 +187,7 @@ order, they build on each other:
 
 | # | File | Primitive |
 |---|---|---|
+| 0 | [`00_run_quickstart.sh`](examples/00_run_quickstart.sh) | Quickstart: advertise + call its own trivial echo procedure — two processes |
 | 1 | [`01_handshake.php`](examples/01_handshake.php) | Identity + CONNECT/HELLO handshake |
 | 2 | [`02_call.php`](examples/02_call.php) | Unary RPC, caller role |
 | 3 | [`03_publish_subscribe.php`](examples/03_publish_subscribe.php) | PubSub: SUBSCRIBE → PUBLISH → EVENT |
@@ -180,10 +196,11 @@ order, they build on each other:
 | 6 | [`06_run_rpc_provider.sh`](examples/06_run_rpc_provider.sh) | Unary RPC, provider role (`serveWaitForCall`) — two processes |
 | 7 | [`07_run_stream_provider.sh`](examples/07_run_stream_provider.sh) | Streaming RPC, provider role (`streamAccept`) — two processes |
 
-Run any of 1–5 directly (`php examples/02_call.php`); 6 and 7 are
+Run any of 1–5 directly (`php examples/02_call.php`); 0, 6, and 7 are
 `.sh` scripts because the provider role genuinely needs two independent
 connections — see [Two-process pattern](#two-process-pattern-for-provider-role-examples)
-for why that's two OS processes (`06_rpc_provider_serve.php` +
+for why that's two OS processes (`00_quickstart_serve.php` +
+`00_quickstart_call.php`, `06_rpc_provider_serve.php` +
 `06_rpc_provider_call.php`, `07_stream_provider_serve.php` +
 `07_stream_provider_call.php`) rather than one script.
 
