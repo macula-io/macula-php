@@ -35,7 +35,7 @@ while ($answered < 1) {
     try {
         $pending = $session->serveWaitForCallGated($requiredIssuer, 15000);
     } catch (\RuntimeException $e) {
-        fprintf(STDERR, "[provider] a CALL was refused by policy before reaching this script (expected for the unauthorized/wrong-issuer attempts): %s\n", $e->getMessage());
+        fprintf(STDERR, "[provider] a CALL was refused by policy before reaching this script (expected for the no-token, wrong-issuer and other-caller attempts): %s\n", $e->getMessage());
         continue;
     }
     fprintf(STDERR, "[provider] serving authorized GATED CALL for procedure=%s\n", $pending->procedure());

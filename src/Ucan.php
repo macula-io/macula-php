@@ -19,9 +19,12 @@ final class Ucan
 {
     /**
      * Mints a new UCAN token, self-issued and signed by $identity.
-     * $issuer/$audience are opaque DID strings -- this does not validate
-     * or resolve DID structure (that's a separate, unbuilt concern on
-     * both the Erlang reference and macula-go).
+     * $audience names the caller that will present the token: its 32-byte
+     * node id as lowercase hex, bin2hex($caller->nodeId()). A provider
+     * serving with Session::serveWaitForCallGated() accepts the token only
+     * from that caller. $issuer is an opaque DID string -- this does not
+     * validate or resolve DID structure (that's a separate, unbuilt
+     * concern on both the Erlang reference and macula-go).
      *
      * @param list<array{with: string, can: string}> $capabilities
      */

@@ -8,7 +8,8 @@ declare(strict_types=1);
  * BOLT#4 Unauthorized -- refused before the provider's own handler logic
  * ever runs), then mints a real token from $authoritySeedHex (the
  * required issuer's seed, shared with the provider only as its derived
- * public key) and calls again WITH it (expects the doubled RESULT).
+ * public key) for this caller's own node id, and calls again WITH it
+ * (expects the doubled RESULT).
  * Not meant to be run alone -- see 09_run_ucan_gated_serve.sh.
  */
 
@@ -35,7 +36,7 @@ echo "[caller] call without a token correctly refused as Unauthorized\n";
 
 $token = Ucan::create(
     issuer: 'did:macula:example-authority',
-    audience: 'did:macula:example-caller',
+    audience: bin2hex($identity->nodeId()),
     capabilities: [],
     identity: $authority,
     expiresAtUnixSec: time() + 60,

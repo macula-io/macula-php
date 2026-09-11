@@ -331,17 +331,20 @@ final class Session
      * Resolves $procedure's currently-advertised serving station via the
      * mesh DHT -- this session is used only to query it, and need not be
      * connected to the station that will end up serving a call for it.
+     * Every advertisement that verifies is a candidate, and the DHT is
+     * asked again until one's station endpoint resolves or $timeoutMs
+     * passes.
      *
      * @return array{station: string, host: string, port: int}
      */
-    public function resolveDirect(string $procedure, string $realm): array
+    public function resolveDirect(string $procedure, string $realm, int $timeoutMs = 10000): array
     {
         $ffi = Binding::get();
         $realmBuf = Binding::cBytes($realm);
         $stationBuf = $ffi->new('unsigned char[32]');
         $portBuf = $ffi->new('uint16_t');
         $hostPtr = Binding::withErrOut(fn ($errOut) => $ffi->macula_resolve_direct(
-            $this->handleOrFail(), $procedure, $realmBuf, $this->identity->handleOrFail(),
+            $this->handleOrFail(), $procedure, $realmBuf, $timeoutMs, $this->identity->handleOrFail(),
             $stationBuf, \FFI::addr($portBuf), $errOut,
         ));
         $host = \FFI::string($hostPtr);
@@ -356,7 +359,7 @@ final class Session
      *
      * @return array{station: string, host: string, port: int}
      */
-    public function resolveDirectWithCertChain(string $procedure, string $realm, string $realmCaPem, string $expectedOrg): array
+    public function resolveDirectWithCertChain(string $procedure, string $realm, string $realmCaPem, string $expectedOrg, int $timeoutMs = 10000): array
     {
         $ffi = Binding::get();
         $realmBuf = Binding::cBytes($realm);
@@ -364,7 +367,7 @@ final class Session
         $stationBuf = $ffi->new('unsigned char[32]');
         $portBuf = $ffi->new('uint16_t');
         $hostPtr = Binding::withErrOut(fn ($errOut) => $ffi->macula_resolve_direct_with_cert_chain(
-            $this->handleOrFail(), $procedure, $realmBuf, $caPemBuf, strlen($realmCaPem), $expectedOrg,
+            $this->handleOrFail(), $procedure, $realmBuf, $caPemBuf, strlen($realmCaPem), $expectedOrg, $timeoutMs,
             $this->identity->handleOrFail(), $stationBuf, \FFI::addr($portBuf), $errOut,
         ));
         $host = \FFI::string($hostPtr);
@@ -571,7 +574,8 @@ final class Session
     /**
      * serveWaitForCall()'s UCAN-gated counterpart: a caller must present
      * a token verifying against $requiredIssuer32 (its 32-byte Ed25519
-     * public key) before this ever returns a PendingCall for a handler to
+     * public key), with the caller's own node id as lowercase hex for its
+     * audience, before this ever returns a PendingCall for a handler to
      * see -- a rejected caller is refused by the station-facing dispatch
      * itself and never reaches PHP at all. Pass null for an open
      * (ungated) policy, equivalent to plain serveWaitForCall().

@@ -18,15 +18,18 @@ import (
 // macula_resolve_direct resolves procedure's currently-advertised serving
 // station via the mesh DHT, using sessionHandle only to query it (it need
 // not be connected to the station that will end up serving the call).
-// Writes the 32-byte station id and dialable port into the given
-// out-params and returns the host as a C string (caller must
-// macula_free_string it); returns -1 with err_out set on failure.
+// Every advertisement that verifies is a candidate, and the DHT is asked
+// again until one's station endpoint resolves or timeoutMs passes. Writes
+// the 32-byte station id and dialable port into the given out-params and
+// returns the host as a C string (caller must macula_free_string it);
+// returns NULL with err_out set on failure.
 //
 //export macula_resolve_direct
 func macula_resolve_direct(
 	sessionHandle C.uintptr_t,
 	procedure *C.char,
 	realm32 *C.uchar,
+	timeoutMs C.int,
 	identityHandle C.uintptr_t,
 	stationOut *C.uchar, // 32 bytes
 	portOut *C.uint16_t,
@@ -37,7 +40,9 @@ func macula_resolve_direct(
 		setErr(errOut, err)
 		return nil
 	}
-	station, host, port, err := directdial.Resolve(session, id, bytes32FromC(realm32), C.GoString(procedure))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMs)*time.Millisecond)
+	defer cancel()
+	station, host, port, err := directdial.Resolve(ctx, session, id, bytes32FromC(realm32), C.GoString(procedure))
 	if err != nil {
 		setErr(errOut, err)
 		return nil
@@ -59,6 +64,7 @@ func macula_resolve_direct_with_cert_chain(
 	realm32 *C.uchar,
 	realmCAPEM *C.uchar, realmCAPEMLen C.int,
 	expectedOrg *C.char,
+	timeoutMs C.int,
 	identityHandle C.uintptr_t,
 	stationOut *C.uchar,
 	portOut *C.uint16_t,
@@ -69,8 +75,10 @@ func macula_resolve_direct_with_cert_chain(
 		setErr(errOut, err)
 		return nil
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMs)*time.Millisecond)
+	defer cancel()
 	station, host, port, err := directdial.ResolveWithCertChain(
-		session, id, bytes32FromC(realm32), C.GoString(procedure),
+		ctx, session, id, bytes32FromC(realm32), C.GoString(procedure),
 		cBytesToGo(realmCAPEM, realmCAPEMLen), C.GoString(expectedOrg),
 	)
 	if err != nil {

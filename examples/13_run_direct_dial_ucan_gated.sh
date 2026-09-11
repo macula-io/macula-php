@@ -6,8 +6,9 @@ set -euo pipefail
 # one second) -- one publishes a direct-dial advertisement and serves a
 # procedure gated to one issuer (Session::advertiseDirect/serveWaitForCallGated,
 # see 13_direct_dial_ucan_gated_serve.php), the other resolves it via the
-# mesh DHT, dials the serving station directly, and calls it three ways:
-# no token, a wrong-issuer token, and a valid token
+# mesh DHT, dials the serving station directly, and calls it four ways:
+# no token, a wrong-issuer token, a token minted for another caller, and a
+# valid token for the calling identity
 # (Session::resolveDirect/callDirect/callDirectWithUcan, see
 # 13_direct_dial_ucan_gated_call.php).
 #

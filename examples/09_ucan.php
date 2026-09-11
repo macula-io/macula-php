@@ -17,10 +17,11 @@ use Macula\Ucan;
 
 $identity = KeyPair::generate();
 $otherIdentity = KeyPair::generate();
+$audience = KeyPair::generate();
 
 $token = Ucan::create(
     issuer: 'did:macula:example-issuer',
-    audience: 'did:macula:example-audience',
+    audience: bin2hex($audience->nodeId()),
     capabilities: [['with' => 'mri:capability:io.macula/weather', 'can' => 'read']],
     identity: $identity,
     expiresAtUnixSec: time() + 3600,
@@ -32,7 +33,7 @@ if ($payload->issuer() !== 'did:macula:example-issuer') {
     fwrite(STDERR, "[ucan] issuer mismatch: {$payload->issuer()}\n");
     exit(1);
 }
-if ($payload->audience() !== 'did:macula:example-audience') {
+if ($payload->audience() !== bin2hex($audience->nodeId())) {
     fwrite(STDERR, "[ucan] audience mismatch: {$payload->audience()}\n");
     exit(1);
 }

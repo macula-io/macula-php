@@ -209,7 +209,9 @@ func macula_call_with_ucan(
 // ever runs -- a rejected caller never reaches PHP at all, matching
 // connection.ServeOneCallGated's own contract exactly. Pass
 // required_issuer32 as NULL for an open (ungated) policy, or a 32-byte
-// Ed25519 public key to require a verifying token from that issuer.
+// Ed25519 public key to require a token that verifies against that issuer
+// and names the calling identity's node id, as lowercase hex, as its
+// audience.
 //
 //export macula_serve_wait_for_call_gated
 func macula_serve_wait_for_call_gated(

@@ -144,10 +144,10 @@ final class Binding
                 void macula_pending_call_reply_error(uintptr_t pending_handle, char *detail, char **err_out);
                 void macula_pending_call_free(uintptr_t pending_handle);
 
-                char *macula_resolve_direct(uintptr_t session_handle, char *procedure, unsigned char *realm32,
+                char *macula_resolve_direct(uintptr_t session_handle, char *procedure, unsigned char *realm32, int timeout_ms,
                     uintptr_t identity_handle, unsigned char *station_out, uint16_t *port_out, char **err_out);
                 char *macula_resolve_direct_with_cert_chain(uintptr_t session_handle, char *procedure, unsigned char *realm32,
-                    unsigned char *realm_ca_pem, int realm_ca_pem_len, char *expected_org,
+                    unsigned char *realm_ca_pem, int realm_ca_pem_len, char *expected_org, int timeout_ms,
                     uintptr_t identity_handle, unsigned char *station_out, uint16_t *port_out, char **err_out);
                 uintptr_t macula_call_direct(uintptr_t resolve_via_session_handle, char *procedure, unsigned char *realm32,
                     int payload_kind, long long payload_int, unsigned char *payload_bytes, int payload_bytes_len, double payload_float,

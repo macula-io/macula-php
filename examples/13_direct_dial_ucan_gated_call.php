@@ -5,12 +5,15 @@ declare(strict_types=1);
 /**
  * Direct-dial + UCAN gating together, caller half: resolves the procedure
  * via the mesh DHT (resolveDirect, proving it's actually direct-dial-only
- * -- a plain call() could never even find it), then makes three calls
+ * -- a plain call() could never even find it), then makes four calls
  * against the direct-dialed station: no token (expect Unauthorized),
  * a token from the WRONG issuer (expect Unauthorized -- callDirectWithUcan
- * exists and attaches it, but the issuer doesn't match), and a valid
- * token from the shared authority seed (expect the doubled RESULT). Not
- * meant to be run alone -- see 13_run_direct_dial_ucan_gated.sh.
+ * exists and attaches it, but the issuer doesn't match), a token from the
+ * right issuer minted for a DIFFERENT caller (expect Unauthorized -- a
+ * gated provider accepts a token only from the caller its audience
+ * names), and a valid token from the shared authority seed for the
+ * calling identity itself (expect the doubled RESULT). Not meant to be
+ * run alone -- see 13_run_direct_dial_ucan_gated.sh.
  */
 
 require __DIR__ . '/../vendor/autoload.php';
@@ -45,8 +48,12 @@ fprintf(STDERR, "[caller] resolved %s -> station=%s host=%s port=%d\n", $procedu
 // further here -- out of scope for the UCAN-over-direct-dial fix this
 // example exists to prove; a fresh session per resolve is a reasonable
 // caller pattern regardless.
-$session2 = Session::connect('station-de-frankfurt.macula.io', 4433, KeyPair::generate());
-$session3 = Session::connect('station-de-frankfurt.macula.io', 4433, KeyPair::generate());
+$identity2 = KeyPair::generate();
+$identity3 = KeyPair::generate();
+$identity4 = KeyPair::generate();
+$session2 = Session::connect('station-de-frankfurt.macula.io', 4433, $identity2);
+$session3 = Session::connect('station-de-frankfurt.macula.io', 4433, $identity3);
+$session4 = Session::connect('station-de-frankfurt.macula.io', 4433, $identity4);
 
 $noToken = $session->callDirect($procedure, $realm, Value::int(21), 10000);
 if (!$noToken->isError() || $noToken->code() !== 0x10) {
@@ -57,7 +64,7 @@ echo "[caller] callDirect() without a token correctly refused as Unauthorized\n"
 
 $wrongToken = Ucan::create(
     issuer: 'did:macula:example-wrong-authority',
-    audience: 'did:macula:example-caller',
+    audience: bin2hex($identity2->nodeId()),
     capabilities: [],
     identity: $otherAuthority,
     expiresAtUnixSec: time() + 60,
@@ -69,9 +76,23 @@ if (!$wrongIssuer->isError() || $wrongIssuer->code() !== 0x10) {
 }
 echo "[caller] callDirectWithUcan() with a wrong-issuer token correctly refused as Unauthorized\n";
 
+$otherCallersToken = Ucan::create(
+    issuer: 'did:macula:example-authority',
+    audience: bin2hex($identity3->nodeId()),
+    capabilities: [],
+    identity: $authority,
+    expiresAtUnixSec: time() + 60,
+);
+$otherCaller = $session4->callDirectWithUcan($procedure, $realm, Value::int(21), $otherCallersToken, 10000);
+if (!$otherCaller->isError() || $otherCaller->code() !== 0x10) {
+    fwrite(STDERR, "[caller] other-caller callDirectWithUcan: expected BOLT#4 Unauthorized (0x10), got isError=" . ($otherCaller->isError() ? '1' : '0') . " code={$otherCaller->code()} name={$otherCaller->name()}\n");
+    exit(1);
+}
+echo "[caller] callDirectWithUcan() with a token minted for another caller correctly refused as Unauthorized\n";
+
 $validToken = Ucan::create(
     issuer: 'did:macula:example-authority',
-    audience: 'did:macula:example-caller',
+    audience: bin2hex($identity3->nodeId()),
     capabilities: [],
     identity: $authority,
     expiresAtUnixSec: time() + 60,

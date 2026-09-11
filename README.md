@@ -94,9 +94,9 @@ yourself is a single command that takes a few seconds.
 | Content transfer (single-block + chunked) | ✅ | ✅ | Content-addressed, BLAKE3/SHA-256, Merkle-verified |
 | Streaming RPC (STREAM_OPEN/DATA/END/REPLY) | ✅ | ✅ | Provider via `streamAccept()` — no rendezvous needed, unlike unary RPC |
 | RPC advertise/unadvertise | ✅ | — | |
-| Direct-dial RPC (`resolveDirect`/`callDirect`/`advertiseDirect`) | ✅ | ✅ | Resolves a procedure via the mesh DHT and dials its station in one hop; `WithCertChain` variants add managed-realm org authorization |
+| Direct-dial RPC (`resolveDirect`/`callDirect`/`advertiseDirect`) | ✅ | ✅ | Resolves a procedure via the mesh DHT, trying each advertisement that verifies within a timeout (10 s by default), and dials its station in one hop; `WithCertChain` variants add managed-realm org authorization |
 | Direct-dial streaming/content (`streamOpenDirect`/`putDirect`/`getDirect`) | ✅ | — | `getDirect` only resolves content a station/relay announced — a leaf identity can't legitimately publish a `content_announcement`, matching `macula-go`'s own scope |
-| UCAN (mint/verify/introspect, policy-gated serving) | ✅ | ✅ | `Ucan::create`/`verify`/`decode`; `Session::callWithUcan`/`serveWaitForCallGated` — a rejected caller is refused before any PHP handler runs |
+| UCAN (mint/verify/introspect, policy-gated serving) | ✅ | ✅ | `Ucan::create`/`verify`/`decode`; `Session::callWithUcan`/`serveWaitForCallGated` — a token is accepted only from the caller its audience names (that caller's node id, lowercase hex), and a rejected caller is refused before any PHP handler runs |
 | RPC telemetry facts (`rpc.sent_v1`/`rpc.completed_v1`/`rpc.received_v1`/`rpc.replied_v1`) | ✅ | ✅ | Automatic, no extra call needed — inherited from `macula-go`'s `Session.Call`/`ServeOneCallGated` |
 
 ## Structure
