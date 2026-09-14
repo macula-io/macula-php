@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<ruleset name="nesting-calibration">
+    <description>Only the nesting rule, at 0, so every function's level is reported.</description>
+    <rule ref="Generic.Metrics.NestingLevel">
+        <properties>
+            <property name="nestingLevel" value="0"/>
+            <property name="absoluteNestingLevel" value="99"/>
+        </properties>
+    </rule>
+</ruleset>

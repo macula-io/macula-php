@@ -1,0 +1,3 @@
+/home/rl/work/worktrees/macula-php/gitmaster-nesting/src/Binding.php:22:19: warning - Function's nesting level (2) exceeds 1; consider refactoring the function
+/home/rl/work/worktrees/macula-php/gitmaster-nesting/src/PendingCall.php:141:12: warning - Function's nesting level (2) exceeds 1; consider refactoring the function
+/home/rl/work/worktrees/macula-php/gitmaster-nesting/src/Session.php:583:12: warning - Function's nesting level (2) exceeds 1; consider refactoring the function
