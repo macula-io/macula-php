@@ -2,7 +2,7 @@ module github.com/macula-io/macula-php/cabi
 
 go 1.27.0
 
-require github.com/macula-io/macula-go v0.8.2
+require github.com/macula-io/macula-go v0.10.0
 
 require (
 	github.com/google/uuid v1.6.0 // indirect
@@ -13,3 +13,5 @@ require (
 	golang.org/x/sys v0.47.0 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
 )
+
+replace github.com/macula-io/macula-go => /home/rl/work/worktrees/macula-go/venus-v091
