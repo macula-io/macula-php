@@ -7,7 +7,7 @@ on:
 
 jobs:
   go-fmt-vet-build:
-    name: cabi (gofmt, go vet, build)
+    name: cabi (gofmt, go vet, go test, build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -19,10 +19,11 @@ jobs:
           go-version-file: cabi/go.mod
       - run: test -z "$(gofmt -l .)"
       - run: go vet ./...
+      - run: go test ./...
       - run: go build -buildmode=c-shared -o libmacula.so .
 
   php-test:
-    name: php (lint, composer validate, phpunit)
+    name: php (lint, composer validate, phpunit against in-process stations)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,27 +33,15 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: "8.3"
-          extensions: ffi, sodium
+          extensions: ffi
       - run: composer validate --strict
       - run: |
           for f in $(find src tests examples -name '*.php'); do
             php -l "$f"
           done
       - run: composer install --no-interaction --prefer-dist
-      # Builds the same libmacula.so the "cabi" job above already
-      # verified compiles clean -- rebuilt here (not shared as an
-      # artifact between jobs) because it's a ~10s step and keeps this
-      # job self-contained.
-      - run: cd cabi && go build -buildmode=c-shared -o libmacula.so .
-      # Offline only (defaultTestSuite="offline" in phpunit.xml) --
-      # exercises pure PHP logic (Value, Binding's marshaling helpers)
-      # and real FFI/cgo mechanics that need no network (identity
-      # generation is local Ed25519 keygen + puzzle grinding). The
-      # examples (01-13) and tests/live's own real-assertion suite all
-      # dial the real production fleet, which has no uptime guarantee
-      # and must never block an unrelated PR -- same convention
-      # macula-go and macula-rust both use for their own live-tagged
-      # tests. Run those manually:
-      #   php examples/01_handshake.php
-      #   composer test:live
+      # libmacula.so and build/teststation, two in-process macula 12
+      # stations the offline suite runs against. tests/live dials the real
+      # fleet and never runs here: `composer test:live`, by hand.
+      - run: composer build
       - run: vendor/bin/phpunit

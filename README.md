@@ -14,419 +14,220 @@
 </p>
 
 <p align="center">
-  <strong>PHP client for the Macula SDK wire protocol</strong>
+  <strong>PHP SDK for the Macula mesh, via FFI over macula-go</strong>
 </p>
 
 ---
 
-**Status, 2026-08-30 — feature-complete, live-verified end to end**
-(PHP → `ext-ffi` → Go C ABI → QUIC → a real production station), matching
-[`macula-go`](https://github.com/macula-io/macula-go) and
-[`macula-rust`](https://github.com/macula-io/macula-rust):
-handshake, unary RPC, PubSub, content transfer, and streaming RPC, every
-primitive in both caller and provider roles, plus direct-dial (resolve a
-procedure via the mesh DHT and dial its serving station in one hop,
-plain and cert-chain-authorized), UCAN (mint/verify/introspect and
-policy-gated serving), and RPC telemetry auto-facts (no extra code needed
-on this side -- they fire automatically underneath `call()`/
-`serveWaitForCall()`, inherited straight from `macula-go`).
+> **Status, 2026-09-26:** on the **macula 12** wire (post-quantum: ML-DSA-87
+> identities, ML-KEM hybrid key exchange, signed requests), over macula-go
+> v0.12.0's pool. Calls and streams by direct dial, serving (under an org or in
+> a node's own namespace), publish/subscribe, the DHT and node-served content
+> are tested against in-process macula 12 stations on every `composer test`.
+> UCAN-gated calls are not here yet; see [Not yet
+> implemented](#not-yet-implemented). Releases before 0.5.0 speak the retired
+> 10.x wire and cannot reach the current fleet.
 
-Two capabilities present in `macula-go` are intentionally NOT exposed
-here: periodic re-advertise and the supervised PubSub wrapper
-(`RunPublisher`/`RunSubscriber`) are both background-loop-shaped APIs on
-the Go side. A PHP process can trivially host the same external behavior
-itself -- call `advertiseDirect()`/`advertise()` again on your own
-schedule inside a `while` loop for the former, and loop `subscribe()` +
-`recvEvent()` yourself for the latter -- so wrapping a second, Go-side
-loop across the FFI boundary would only add callback plumbing this SDK's
-synchronous design otherwise avoids entirely, not new capability.
+## What is this?
 
-A PHP client for the [Macula](https://github.com/macula-io/macula) wire
-protocol. Architecturally this is a thin binding, not a third from-scratch
-protocol port: `macula-go` already has a complete, live-verified
-implementation of the wire protocol with a plain blocking API (no
-goroutines/channels required of the caller) — a close match for PHP's own
-default blocking-call execution model. This repo wraps that existing SDK
-as a C shared library and loads it from PHP via `ext-ffi`, rather than
-re-implementing CBOR/QUIC/Ed25519/frame signing a third time.
-
-Rust's own mobile bindings (`macula-rust-ffi`) took the analogous
-approach for Kotlin/Swift via UniFFI — no UniFFI backend exists for PHP,
-so this repo hand-builds a much simpler *synchronous* C ABI directly
-(PHP calls a blocking C function; the Go side blocks on the QUIC
-operation internally and returns), skipping the async-callback plumbing
-UniFFI needs for Kotlin coroutines / Swift `async` entirely — with one
-exception: unary-RPC provider dispatch needs a real rendezvous (a PHP
-handler runs *between* "a CALL arrived" and "send the reply"), which
-this repo builds as a goroutine + channel pair on the Go side, split
-into two PHP-facing calls (`Session::serveWaitForCall()` returning a
-`PendingCall`, then `PendingCall::replyResult()`/`replyError()`) — see
-[Provider dispatch](#provider-dispatch-unary-rpc) below.
-
-## New to Go? You'll never write any
-
-This SDK is PHP. The only thing Go is used for is compiling one shared
-library (`libmacula.so`) that PHP loads at runtime — you run one build
-command and never touch Go again. If you don't have Go installed:
-
-- **Any OS**: download the installer from
-  [go.dev/dl](https://go.dev/dl/) and follow its instructions, or
-- **macOS**: `brew install go`
-- **Debian/Ubuntu**: `sudo apt install golang-go` (check the version is
-  ≥ 1.26 — if your distro's package is older, use the go.dev installer
-  instead)
-- **Arch**: `sudo pacman -S go`
-- **Fedora**: `sudo dnf install golang`
-
-Verify with `go version`, then follow [Quick start](#quick-start) below
-— `cd cabi && go build ...` is the one and only Go command you'll ever
-run. A future release may ship prebuilt `libmacula.so` binaries via
-Composer so this step isn't needed at all; for now, building it
-yourself is a single command that takes a few seconds.
-
-## Features
-
-| Primitive | Caller | Provider | Notes |
-|---|---|---|---|
-| Handshake (CONNECT/HELLO) | ✅ | — | |
-| Unary RPC (CALL/RESULT/ERROR) | ✅ | ✅ | Provider via a goroutine+channel rendezvous, see below |
-| PubSub (PUBLISH/SUBSCRIBE/EVENT) | ✅ | ✅ | A subscriber gets its own publish, verified live |
-| Content transfer (single-block + chunked) | ✅ | ✅ | Content-addressed, BLAKE3/SHA-256, Merkle-verified |
-| Streaming RPC (STREAM_OPEN/DATA/END/REPLY) | ✅ | ✅ | Provider via `streamAccept()` — no rendezvous needed, unlike unary RPC |
-| RPC advertise/unadvertise | ✅ | — | |
-| Direct-dial RPC (`resolveDirect`/`callDirect`/`advertiseDirect`) | ✅ | ✅ | Resolves a procedure via the mesh DHT, trying each advertisement that verifies within a timeout (10 s by default), and dials its station in one hop; `WithCertChain` variants add managed-realm org authorization |
-| Direct-dial streaming/content (`streamOpenDirect`/`putDirect`/`getDirect`) | ✅ | — | `getDirect` only resolves content a station/relay announced — a leaf identity can't legitimately publish a `content_announcement`, matching `macula-go`'s own scope |
-| UCAN (mint/verify/introspect, policy-gated serving) | ✅ | ✅ | `Ucan::create`/`verify`/`decode`; `Session::callWithUcan`/`serveWaitForCallGated` — a token is accepted only from the caller its audience names (that caller's node id, lowercase hex), and a rejected caller is refused before any PHP handler runs |
-| RPC telemetry facts (`rpc.sent_v1`/`rpc.completed_v1`/`rpc.received_v1`/`rpc.replied_v1`) | ✅ | ✅ | Automatic, no extra call needed — inherited from `macula-go`'s `Session.Call`/`ServeOneCallGated` |
-
-## Structure
-
-```
-cabi/           Go module, builds libmacula.so via `go build -buildmode=c-shared`.
-                Plain consumer of macula-go's public API -- no changes
-                needed to macula-go itself. You never edit this unless
-                you're adding a new wire primitive.
-cabi/testc/     A standalone C smoke test, independent of PHP -- proves the
-                cgo boundary and a real handshake work without needing PHP
-                installed at all.
-src/            PHP composer package -- this is what you actually use.
-                Binding.php loads libmacula.so via FFI::cdef(); KeyPair,
-                Session, Value, CallResponse, Event, StreamHandle/
-                StreamItem/StreamReply/StreamOpenInfo, PendingCall are
-                the public API.
-examples/       One runnable script per wire primitive, against the real
-                production fleet -- see Examples below.
-tests/          Offline PHPUnit suite -- no network, no live station.
-                See Testing below.
-```
+A PHP SDK for the Macula mesh: a node's key, a pool of links to stations it
+pins by node_id, calls and streams that reach a provider by direct dial,
+serving procedures, publish/subscribe, node-served content and the DHT. It is
+an FFI binding over [macula-go](https://github.com/macula-io/macula-go): the Go
+SDK is compiled into one shared library, `libmacula.so`, which PHP loads with
+`ext-ffi`, rather than a third implementation of QUIC, post-quantum TLS,
+deterministic CBOR and signed frames.
 
 ## Quick start
 
 ```bash
-cd cabi && go build -buildmode=c-shared -o libmacula.so . && cd ..
-composer install
-bash examples/00_run_quickstart.sh
+composer require macula-io/macula-php
+cd vendor/macula-io/macula-php && composer build   # compiles cabi/ into libmacula.so
 ```
 
-Also lives as a runnable example -- `bash examples/00_run_quickstart.sh`.
-Advertises and calls its own trivial echo procedure (two identities, a
-provider and a caller, since a station kicks a connection the instant a
-second one arrives under the same identity) rather than depending on any
-particular procedure already being advertised on the fleet. Unlike the
-other SDKs in this family, this is genuinely **two real OS processes**,
-not one script or two Sessions in one process: `fork()` after loading the
-cgo-backed shared library isn't safe for continued execution in the child
--- see [Two-process pattern](#two-process-pattern-for-provider-role-examples)
-for why. `00_run_quickstart.sh` generates the procedure name and realm,
-launches the provider (`00_quickstart_serve.php`) in the background, then
-the caller (`00_quickstart_call.php`) in the foreground:
+A node needs a station to link to, **pinned by its node_id**, and the key of
+each realm it trusts, which the realm publishes. Its own key is created on
+first use and kept in a file readable by its owner only.
 
 ```php
-// 00_quickstart_serve.php -- provider half
-$identity = KeyPair::generate();
-$session = Session::connect('station-de-frankfurt.macula.io', 4433, $identity);
-$session->advertise($procedure, $realm);
+use Macula\NodeKey;
+use Macula\Pool;
+use Macula\Seed;
+use Macula\StreamData;
+use Macula\StreamEnd;
+use Macula\StreamMode;
 
-$pending = $session->serveWaitForCall(15000);
-$pending->replyResult($pending->payload()); // echo, unchanged
+$key = NodeKey::loadOrCreate('node.key');
+$pool = Pool::connect($key, [new Seed('station-fi-helsinki.macula.io', 4433, $stationId)],
+    realmTrust: [$realm => $realmKeyHex]);
 
-$session->close();
+// A call reaches a provider by direct dial: its advertisement from the DHT,
+// trusted only when the realm key authorizes it, and its station dialed.
+$answer = $pool->call($realm, 'mcl-echo/echo', 'hello');
+
+// Publish and subscribe; topics name a kind of fact, ids go in the payload.
+$sub = $pool->subscribe($realm, 'acme/demo/greeting_sent_v1');
+$pool->publish($realm, 'acme/demo/greeting_sent_v1', ['text' => 'hi']);
+foreach ($sub->events(idleMs: 2_000) as $event) {
+    echo json_encode($event->payload), "\n";
+}
+
+// Streams: a server stream's chunks arrive until its end.
+$stream = $pool->openStream($realm, 'mcl-tube/watch', StreamMode::Server);
+foreach ($stream as $event) {
+    if ($event instanceof StreamEnd) {
+        break;
+    }
+}
+$stream->free();
+
+$pool->close();
 ```
+
+Serving is a worker of its own, since a PHP process runs one thing at a time
+(see [Serving](#serving)):
 
 ```php
-// 00_quickstart_call.php -- caller half
-$identity = KeyPair::generate();
-$session = Session::connect('station-de-frankfurt.macula.io', 4433, $identity);
-
-$response = $session->call($procedure, $realm, Value::text('hello'), 10000);
-printf("call response: %s\n", $response->payload()->asText());
-
-$session->close();
+$served = $pool->serve($realm, $pool->ownProcedure('ring'));   // ~<node_id>/ring: no org, no realm key
+while (true) {
+    $served->handle(fn (Macula\Request $r) => ['answered' => $r->caller], timeoutMs: 1_000);
+}
 ```
 
-For the simplest possible one-script example (a bare handshake, no RPC),
-see `examples/01_handshake.php` in the table below.
+Runnable versions are in [`examples/`](examples).
 
-`Session::connectSeeds(['host1:port', 'host2:port', ...], $identity)` is
-`connect()`'s multi-station counterpart (`examples/12_connect_seeds.php`):
-tries each candidate in order, returns the first that answers -- for a
-caller that wants to survive one station being down without failing
-outright, matching the fallback macula-cli's own `-seed` flag gives
-every direct-dial command.
+### Coming from 0.4 and earlier
 
-`Value` is a restricted mirror of `macula-go`'s `cbor.Value` --
-`Null`/`Int`/`Bytes`/`Text`/`Float` (no `List`/`Map` yet, the same v1
-cut `macula-rust-ffi`'s own `FfiValue` made — a payload needing
-structure today should be encoded as `Bytes`).
+Everything moved to the macula 12 wire, and the API with it. There is no
+compatibility layer.
 
-## Examples
+- **New identities.** A macula 12 node_id derives from an ML-DSA-87 key (or the
+  LAMPS composite in `pq_hybrid`), so no Ed25519 identity carries over.
+  `NodeKey::loadOrCreate($path)` makes a new key file. **Re-join your realms
+  and re-trust your agents**: anything that named your old node_id must be
+  redone with the new one.
+- `KeyPair` is now `NodeKey`; `Session` is `Pool`, whose seeds carry the
+  station's node_id and whose `realmTrust` pins realm keys; `callDirect` is
+  simply `call`; `resolveDirect` is `providers`; `serveWaitForCall` is
+  `Served::next` or `Served::handle`; `streamAccept` is `ServedStream::next`
+  or `ServedStream::handle`; `putDirect`/`getDirect` are `shareContent`/
+  `getContent`.
+- `Value` is gone: a payload is a plain PHP value (see [Payloads](#payloads)).
+- `Ucan` is gone until macula 12's UCANs are (see [Not yet
+  implemented](#not-yet-implemented)).
+- Serving an org procedure needs the realm's org directory and the org's
+  delegation to your node in the DHT: a realm admits orgs through a human.
 
-One script per wire primitive, each runnable on its own against the
-real production fleet (`station-de-frankfurt.macula.io`) — read them in
-order, they build on each other:
+## What's implemented
 
-| # | File | Primitive |
-|---|---|---|
-| 0 | [`00_run_quickstart.sh`](examples/00_run_quickstart.sh) | Quickstart: advertise + call its own trivial echo procedure — two processes |
-| 1 | [`01_handshake.php`](examples/01_handshake.php) | Identity + CONNECT/HELLO handshake |
-| 2 | [`02_call.php`](examples/02_call.php) | Unary RPC, caller role |
-| 3 | [`03_publish_subscribe.php`](examples/03_publish_subscribe.php) | PubSub: SUBSCRIBE → PUBLISH → EVENT |
-| 4 | [`04_content.php`](examples/04_content.php) | Content transfer: single-block and chunked put/get |
-| 5 | [`05_stream_open_caller.php`](examples/05_stream_open_caller.php) | Streaming RPC, caller role |
-| 6 | [`06_run_rpc_provider.sh`](examples/06_run_rpc_provider.sh) | Unary RPC, provider role (`serveWaitForCall`) — two processes |
-| 7 | [`07_run_stream_provider.sh`](examples/07_run_stream_provider.sh) | Streaming RPC, provider role (`streamAccept`) — two processes |
+| Primitive | Caller | Provider | Notes |
+|---|---|---|---|
+| Node keys (`NodeKey`) | ✅ | ✅ | `pq_hybrid` (the fleet's) or `pq_pure`; key files readable by the owner only |
+| Pool of station links (`Pool::connect`) | ✅ | ✅ | Seeds pinned by node_id; realm keys pinned; links redialed with subscriptions and served procedures replayed |
+| Calls by direct dial (`call`, `providers`) | ✅ | ✅ | Errors arrive as `ProviderError` / `RelayError` |
+| A node's own namespace (`ownProcedure`) | ✅ | ✅ | `~<node_id>/<name>`: served and called with no org and no realm key; the node's signature authorizes it |
+| Streams (`openStream`, `serveStream`) | ✅ | ✅ | Server, client and bidi; a QUIC stream per session, released on every path |
+| Publish/subscribe | ✅ | ✅ | Signed publications, delivered once across links |
+| DHT (`findRecord`, `findRecords`, `findRecordsByType`, `putRecord`) | ✅ | — | Records verified before they are handed on |
+| Node-served content (`shareContent`, `unshareContent`, `getContent`) | ✅ | ✅ | Shared on the node's own `~<node_id>/content_v1` and announced; a fetch checks the block, the manifest and every chunk against the content id, bounded, with no realm key; `NotSharedError` / `ContentUnavailableError` |
 
-Run any of 1–5 directly (`php examples/02_call.php`); 0, 6, and 7 are
-`.sh` scripts because the provider role genuinely needs two independent
-connections — see [Two-process pattern](#two-process-pattern-for-provider-role-examples)
-for why that's two OS processes (`00_quickstart_serve.php` +
-`00_quickstart_call.php`, `06_rpc_provider_serve.php` +
-`06_rpc_provider_call.php`, `07_stream_provider_serve.php` +
-`07_stream_provider_call.php`) rather than one script.
+## Serving
+
+A served call waits in the library until PHP takes it. `Served::next()`
+returns a `PendingCall` (its `request`, then `reply()` or `fail()` once), and
+`Served::handle($handler)` does the whole round: it takes one call, answers it
+with what the handler returns, or a `handler_error` with the message of what it
+throws, and reports whether there was one. A call nobody answers by its
+deadline is answered for it with an error. Streams work the same way:
+`ServedStream::handle($handler)` runs the handler on one session, closes the
+stream when the handler returns, aborts it with code `error` when it throws,
+and frees it either way.
+
+Because the call a PHP process makes blocks until it is answered, a process
+cannot call a procedure it serves itself: run the provider as a worker of its
+own, as [`examples/02_serve.php`](examples/02_serve.php) does.
+
+## Payloads
+
+A payload is what macula's wire CBOR carries: `null`, int, float, string,
+list, map. **There is no boolean**: write 1 or 0; a PHP `true`/`false`
+anywhere in a payload is refused with an `InvalidArgumentException` before it
+reaches the wire. A list is a PHP list, a map an array with string keys; an
+empty map is `new \stdClass()`, since `[]` is an empty list. A map comes back
+in the wire's canonical key order.
+
+Bytes have no JSON shape. Going in, give them as `Wire::bytes($raw)`; a plain
+string is always text. Coming out, bytes are a `"0x"`-prefixed lowercase hex
+string, or `['$bytes' => base64]` when a method is given
+`bytes: BytesOutput::Tagged`.
+
+Ids (realms, nodes, record keys) are taken as 64 hex characters or 32 raw
+bytes, and come back as hex.
+
+## Architecture
+
+```
+src/ (PHP API)  ──  src/Binding.php (ext-ffi)  ──  cabi/ (Go, libmacula.so)  ──  macula-go pool
+```
+
+`cabi/` exports C functions over macula-go's `pool` (and `stationlink`
+streams). Every Go value crosses as a `runtime/cgo.Handle`; payloads cross as
+JSON. Every call that does network I/O blocks the calling PHP thread. PHP's FFI
+cannot take a callback on a Go thread, so what arrives on its own (a
+subscription's events, a served procedure's calls, a streaming procedure's
+sessions) waits in a bounded inbox in `cabi/inbox.go` until a `*_next`
+function takes it, with a wait of its own.
+
+## Not yet implemented
+
+- **UCAN-gated calls and serving.** macula 12 uses post-quantum UCANs
+  (macula-go#2). Calls carry no token yet, and a gated procedure cannot be
+  served.
 
 ## Testing
 
 ```bash
-cd cabi && go build -buildmode=c-shared -o libmacula.so . && cd ..
 composer install
-composer test   # or: vendor/bin/phpunit
+composer build        # libmacula.so and build/teststation
+composer test         # the offline suite
+composer test:live    # one live station, see below
 ```
 
-Running the suite needs PHP ≥ 8.3 (PHPUnit 12's own floor); the library
-itself stays ≥ 8.1 — `phpunit/phpunit` is a require-dev, so it never
-constrains a consumer installing without `--no-dev`.
+`composer test` runs `tests/PoolTest.php` against `cabi/cmd/teststation`, a
+helper that runs two in-process macula 12 stations (macula-go's `teststation`)
+sharing a DHT, with a test realm that admits the test's provider nodes. It
+exercises keys, calls by direct dial and their errors, providers, server and
+client streams and a provider that aborts one (and that no stream is left
+unreleased), pubsub, node-served content and the DHT, through the real library.
+A provider a test calls runs in a PHP process of its own
+(`tests/fixtures/provider.php`). No network is needed. The suite needs PHP ≥
+8.3 (PHPUnit 12's floor); the library itself runs on PHP ≥ 8.1.
 
-`tests/` is an **offline** PHPUnit suite — no network, no live station,
-runs in CI on every push (`defaultTestSuite="offline"` in
-`phpunit.xml`, so a bare `composer test`/`vendor/bin/phpunit` never
-touches the network). It's not testing everything the examples above
-prove; it's testing what's actually testable without a real station:
-`Value` construction (pure PHP), `Binding`'s marshaling helpers
-(`valueFromParts()`, `cBytes()` — the latter does load `libmacula.so`
-and allocate a real C buffer, but never opens a connection), and
-`KeyPair` lifecycle (`generate()`/`nodeId()`/`free()` against the real
-compiled library — Ed25519 keygen and S/Kademlia puzzle-hardening are
-entirely local computation, no network involved at all).
-
-`tests/live/` is a second, real-assertion PHPUnit suite against the
-real production fleet — genuine regression coverage (not a manually
-narrated walkthrough like the examples), run explicitly, never
-automatically:
-
-```bash
-composer test:live   # or: vendor/bin/phpunit, testsuite live
-```
-
-Two real `Session`s (two identities) in one process, sequential calls,
-no `pcntl_fork()` and no goroutine-style concurrency needed — see
-`tests/live/ClientStreamLiveTest.php`'s own doc comment for why that's
-safe and sufficient here. It currently exercises ClientStream mode's
-real caller/provider/reply round trip (the first functional proof this
-SDK's streaming half of the wire protocol round-trips at all against a
-real provider), skipping rather than failing on a specific, named,
-still-intermittent macula-station relay bug it was written to catch.
-
-Everything else that needs an actual CONNECT/HELLO handshake is proven
-by the [examples](#examples) instead, run manually against the real
-production fleet, the same live-verification discipline `macula-go`
-and `macula-rust` both use.
-
-## Provider dispatch (unary RPC)
-
-```php
-$session->advertise('math.double', $realm);
-
-$pending = $session->serveWaitForCall(30000); // blocks for the next inbound CALL
-$n = $pending->payload()->intValue;
-$pending->replyResult(Value::int($n * 2));
-```
-
-Unlike every other primitive here, this can't be a single blocking
-call: `macula-go`'s own `Session.ServeOneCall` takes a Go closure
-as the handler and runs "wait, invoke, reply" as one atomic operation
-— PHP has nothing to hand across the FFI boundary in place of that
-closure. `cabi/serve.go` splits it instead: `macula_serve_wait_for_call`
-spawns a goroutine running the real `ServeOneCall`, whose handler
-closure blocks on a Go channel; `macula_serve_wait_for_call` itself
-blocks on a second channel until that handler fires, then returns a
-`PendingCall` handle. `PendingCall::replyResult()`/`replyError()`
-sends PHP's answer back down the first channel and blocks until
-`ServeOneCall` has actually sent the wire frame. **Exactly one reply
-call is required per `PendingCall`** — dropping one without replying
-leaks the waiting goroutine, since there's no cross-boundary way to
-notice "PHP gave up" and unblock it (`PendingCall` warns via
-`trigger_error` if this happens).
-
-## Two-process pattern for provider-role examples
-
-`fork()` after a cgo-backed shared library (`libmacula.so`) is loaded
-is not safe for continued execution in the child — confirmed against
-[golang/go#15538](https://github.com/golang/go/issues/15538): `fork()`
-only duplicates the calling OS thread, not the extra threads Go's own
-scheduler/netpoller depend on, so a forked child gets a broken copy of
-the Go runtime (silent I/O stalls, not a crash you'd notice
-immediately — this repo hit it directly building the streaming
-example). The standard fix is "fork() only safe when immediately
-followed by exec()"; this repo's own provider-role examples use two
-real OS processes instead of `pcntl_fork()`:
-
-```bash
-bash examples/06_run_rpc_provider.sh
-bash examples/07_run_stream_provider.sh
-```
-
-Both spawn a provider process in the background, give the station a
-moment to register its `advertise()`, then run a caller process against
-it — the realistic shape a real deployment takes anyway (a provider
-daemon process, separate from whatever calls it), not a workaround
-adopted only for testing.
-
-**A second real gotcha found running these:** `Session::close()` tears
-down the whole QUIC connection immediately (`macula-go`'s own
-`Session.Close` has no drain step). For unary RPC this is harmless —
-the caller only returns from `call()` after actually receiving the
-RESULT frame, so by the time either side closes, the exchange is
-already confirmed complete. For streaming, `closeSend()` is
-fire-and-forget (no acknowledgment the peer's `recv()` has seen the
-STREAM_END yet), so a provider closing its session immediately after
-`closeSend()` can race the frame it just queued, and the caller
-sometimes sees a hard connection-level EOF instead of a graceful
-end-of-stream — reproduced directly building this repo (`07`'s
-provider failed intermittently, `06`'s never did, and the RPC-vs-
-streaming acknowledgment difference above is exactly why).
-
-This is inherent to `closeSend()`'s fire-and-forget design, not
-something a fixed delay can fully eliminate (a longer `usleep()` only
-narrows the window, and did not fully close it under stress testing —
-23/24 runs clean, one still racing). `07_stream_provider_serve.php`
-keeps a short `usleep()` before `close()` as a courtesy that helps in
-the common case; `07_stream_provider_call.php` is the actual fix —
-it treats a connection-level EOF on the final `recv()` as an accepted,
-documented outcome rather than a failure, since by that point the
-real data has already arrived and both shapes mean the same thing
-("nothing more is coming"). A real long-lived provider daemon
-wouldn't hit this at all, since it has no reason to close its
-connection right after every response.
-
-## The C ABI
-
-Handles: every Go value that crosses the boundary (identities,
-sessions, call responses, events, streams, pending calls) is wrapped as
-a `runtime/cgo.Handle` — an opaque `uintptr_t` PHP holds and passes
-back, never touching the Go value directly. Payloads: `Value`s cross as
-five flat scalar parameters (`kind`, `int_val`, `bytes_val`/`bytes_len`,
-`float_val`) rather than a struct, deliberately — a struct's memory
-layout has to match byte-for-byte between Go's cgo-generated version and
-PHP's own hand-written `FFI::cdef()` declaration, and getting that wrong
-fails as a segfault, not a type error; flat scalar parameters carry no
-such risk. `Session` holds a PHP reference to the `KeyPair` it was
-connected with (and `StreamHandle` to the `KeyPair` it was
-opened/accepted with) for its whole lifetime — both because
-macula-go's own signing operations need the identity again on every
-call, and because that reference keeps PHP's refcounting GC from
-freeing the identity out from under a still-open session/stream (their
-destruction order isn't otherwise guaranteed). Errors: functions that
-can fail take a `char** err_out` — on failure they `malloc` a C string
-into `*err_out` that the caller frees via `macula_free_string`;
-`Binding::withErrOut()` wraps this pattern once so the public classes
-never touch it directly.
-
-**Live-verified, 2026-08-28, every primitive, against
-`station-de-frankfurt.macula.io`:**
-
-```
-$ php examples/01_handshake.php
-identity node_id: 912e278c91bc32aa8834b556381ba1ccac829a0d5884fa1bf8d29915012c108b
-accepted: true
-station node_id: 808d48be8780338f9739b96b17a09c086caea2fdac878b28e8b89fc8d72592a6
-OK
-
-$ php examples/02_call.php
-OBSERVED: got an ERROR (expected for a nonexistent procedure): code=1 name=unknown_next_peer
-
-$ php examples/03_publish_subscribe.php
-OBSERVED: received our own EVENT back: topic=... seq=1 delivered_via=direct payload=hello from macula-php
-
-$ php examples/04_content.php
-put single block: mcid=...  single-block round trip OK
-put chunked: mcid=...  size=536633  chunked round trip OK
-
-$ php examples/05_stream_open_caller.php
-no reply within 5s, as: stream: peer aborted the stream: unknown_next_peer (procedure not advertised)
-
-$ bash examples/06_run_rpc_provider.sh
-[provider] serving CALL for procedure=...
-[caller] got RESULT 42
-
-$ bash examples/07_run_stream_provider.sh
-[provider] accepted stream_open for procedure=...  mode=0
-[caller] received chunk: hello from the provider
-[caller] received Eof
-```
-
-Every empirical finding here matches `macula-go`'s and
-`macula-rust`'s own live results exactly (`unknown_next_peer` for
-both an un-advertised CALL and an un-advertised STREAM_OPEN,
-`delivered_via=direct` for a subscriber receiving its own publish) —
-three independent implementations, now four, agreeing not just on wire
-bytes but on live protocol behavior.
+`tests/live/FleetTest.php` runs against one real station and is not part of
+`composer test`. It needs `MACULA_PHP_LIVE_SEED` (host:port),
+`MACULA_PHP_LIVE_STATION_ID` (the station's node_id), `MACULA_PHP_LIVE_REALM`
+and `MACULA_PHP_LIVE_REALM_KEY`; an unset one fails the run naming it. With a
+key generated for the run and never saved, it reads the DHT, calls
+`mcl-echo/echo` by direct dial and hears its own publication.
 
 ## Requirements
 
-- PHP ≥ 8.1 with `ext-ffi` and `ext-sodium` enabled (`ext-pcntl` is
-  not required — this repo's own provider-role examples orchestrate two
-  processes via plain shell `&`/`wait`, not PHP-level forking). `ext-ffi`
-  is not always enabled by default in distro PHP builds — check
-  `php -m | grep FFI`; if missing, PHP needs to be (re)built with
-  `--with-ffi` (**not** `--enable-ffi` — that flag doesn't exist and is
-  silently ignored by `configure`, which was this repo's own first
-  mistake building it).
-- Go ≥ 1.26 and a C compiler (`cgo` requirement) to build `cabi/` —
-  see [New to Go?](#new-to-go-youll-never-write-any) above if you don't
-  have it installed; you'll run one build command and never touch Go
-  again.
+- PHP ≥ 8.1 with `ext-ffi`. `ext-ffi` is not always enabled in distro PHP
+  builds: check `php -m | grep FFI`; PHP is built with it by `--with-ffi`.
+- Go ≥ 1.26 and a C compiler (cgo), to build `cabi/`. `composer build` is the
+  only Go command you run; you never write Go.
 - Composer.
 
-## Status
+## Sibling SDKs
 
-**Built and live-verified, feature-complete:** identity, CONNECT/HELLO,
-unary RPC (both roles), PubSub, content transfer, streaming RPC (both
-roles) — the same wire-protocol scope `macula-go` and
-`macula-rust` cover, all driven through the full real stack from
-genuine PHP.
-
-**Not built, and out of scope for a leaf SDK entirely** (not a gap):
-DHT/HyParView/Plumtree gossip primitives — station-to-station overlay
-membership/broadcast, never a leaf-client concern; `macula-go`'s
-own spec says so explicitly.
-
-## Related projects
-
-| Project | Description |
+| Repo | Approach |
 |---|---|
-| [macula-go](https://github.com/macula-io/macula-go) | The Go SDK this repo binds to |
-| [macula-rust](https://github.com/macula-io/macula-rust) | The Rust port — mobile bindings via UniFFI |
 | [macula](https://github.com/macula-io/macula) | The reference SDK (Erlang/OTP) |
+| [macula-go](https://github.com/macula-io/macula-go) | Go port, and what this SDK binds |
+| [macula-ts](https://github.com/macula-io/macula-ts) | FFI binding over macula-go, for Node.js; this SDK's `cabi/` follows its pool model |
+| [macula-rust](https://github.com/macula-io/macula-rust) | Native reimplementation (quinn, pure Rust) |
+| [macula-station](https://github.com/macula-io/macula-station) | The station: DHT, SWIM, routing, peering |
+| [macula-realm](https://github.com/macula-io/macula-realm) | Managed-realm identity + certificate authority |
 
 ## License
 

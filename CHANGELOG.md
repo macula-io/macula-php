@@ -6,6 +6,44 @@ to v0.3.4 are described in their annotated git tag messages.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-09-26
+
+### Breaking
+
+- The macula 12 wire, over macula-go v0.12.0's pool. Releases before 0.5.0
+  speak the retired 10.x wire and cannot reach the current fleet. There is no
+  compatibility layer.
+- New identities: `NodeKey` (ML-DSA-87, `pq_pure`, or the LAMPS composite,
+  `pq_hybrid`, the fleet's profile) replaces `KeyPair`. No Ed25519 identity
+  carries over; anything that named an old node_id must be redone.
+- `Pool` replaces `Session`: seeds are pinned by node_id, realm keys by
+  `realmTrust`, and calls and streams reach a provider by direct dial.
+  `callDirect` is `call`, `resolveDirect` is `providers`,
+  `serveWaitForCall` is `Served::next`/`Served::handle`, `streamAccept` is
+  `ServedStream::next`/`ServedStream::handle`, `putDirect`/`getDirect` are
+  `shareContent`/`getContent`.
+- Payloads are plain PHP values; `Value` is removed. A boolean anywhere in a
+  payload is refused before it reaches the wire. Bytes go in as
+  `Wire::bytes()` and come out as hex, or tagged with `BytesOutput::Tagged`.
+- `Ucan` and `UcanPayload` are removed until macula 12's UCANs are
+  implemented (macula-go#2).
+- The C ABI in `cabi/` is rewritten on the macula-ts pool model. A
+  subscription's events, a served procedure's calls and a streaming
+  procedure's sessions wait in a bounded inbox until PHP takes them with
+  `macula_subscription_next` or `macula_served_next`: PHP's FFI takes no
+  callback on a Go thread.
+
+### Added
+
+- A node's own namespace, `Pool::ownProcedure()`: served and called with no
+  org and no realm key.
+- Node-served content (`shareContent`, `unshareContent`, `getContent`) and the
+  DHT (`findRecord`, `findRecords`, `findRecordsByType`, `putRecord`).
+- `composer build`, which builds `libmacula.so` and `build/teststation`.
+- An offline suite against two in-process macula 12 stations
+  (`cabi/cmd/teststation`), and a live suite against one real station
+  (`tests/live/FleetTest.php`).
+
 ## [0.4.0] - 2026-09-11
 
 ### Breaking

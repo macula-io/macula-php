@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace Macula;
 
-/** Who's expected to push data on a stream -- mirrors frame.StreamMode. */
-final class StreamMode
+/** The three stream modes: the provider sends (Server), the caller sends and
+ * the provider replies (Client), or both send (Bidi). */
+enum StreamMode: int
 {
-    /** The provider pushes chunks at the caller. */
-    public const SERVER_STREAM = 0;
-    /** The caller pushes chunks at the provider. */
-    public const CLIENT_STREAM = 1;
-    /** Both directions. */
-    public const BIDI = 2;
+    case Server = 0;
+    case Client = 1;
+    case Bidi = 2;
 }

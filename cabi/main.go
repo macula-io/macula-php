@@ -1,26 +1,26 @@
-// Package main is macula-php's C ABI layer: a thin cgo export
-// wrapping macula-go's existing blocking public API, built as a
-// shared library (`go build -buildmode=c-shared`) for PHP's `ext-ffi`
-// to load directly. macula-go itself needs zero changes for this —
-// this file is an ordinary consumer of its public API, same as any Go
-// program importing the module.
+// Package main is macula-php's C ABI over macula-go's macula 12 API: node
+// keys, a pool of station links, calls and streams by direct dial, serving,
+// publish/subscribe, content and the DHT. It is built as a shared library
+// (-buildmode=c-shared, libmacula.so) that src/Binding.php loads with PHP's FFI.
 //
-// Handles: every Go value that crosses the boundary (identities,
-// sessions) is wrapped as a `runtime/cgo.Handle` — an opaque uintptr
-// safe to pass through C and back, the standard Go mechanism for
-// exactly this. PHP holds the uintptr, never touches the Go value
-// directly, and must call the matching `_free`/`_close` function when
-// done — there is no GC coordination across this boundary.
+// Handles: every Go value that crosses the boundary (a key, a pool, a
+// subscription, a served procedure, a pending call, a stream) is a
+// runtime/cgo.Handle, an opaque uintptr the PHP side holds and gives
+// back, and frees with the matching _free or _stop when done. A handle this
+// process never issued, or already freed, is refused as invalid rather than
+// panicking (cgo.Handle.Value panics on one).
 //
-// Errors: any function that can fail takes a `char** err_out`. On
-// failure it mallocs a C string into `*err_out` (via C.CString) and
-// returns a zero/negative sentinel; the caller must free it with
-// macula_free_string. On success `*err_out` is left untouched.
+// Errors: a function that can fail takes a char** err_out. On failure it
+// mallocs a C string into *err_out and returns a zero value; the caller frees
+// it with macula_free_string. On success *err_out is untouched.
 //
-// Walking skeleton scope only, matching exactly what macula-go and
-// macula-rust each proved first: identity generation, the
-// CONNECT/HELLO handshake, and close — live-verified against a real
-// station before anything else gets built on top.
+// Payloads cross as JSON text, converted to and from cbor.Value by
+// wirevalue.go: no booleans, and bytes as {"$bytes": "<base64>"} going in and
+// either "0x..." hex or the tagged form coming out, as the caller asks.
+//
+// Every function that does network I/O blocks the calling PHP thread. PHP
+// takes no callback on a Go thread, so what arrives on its own (events, served
+// calls and sessions) waits in an inbox that a *_next call drains (inbox.go).
 package main
 
 /*
@@ -30,27 +30,15 @@ package main
 import "C"
 
 import (
-	"context"
 	"errors"
-	"fmt"
-	"net"
 	"runtime/cgo"
-	"strconv"
-	"strings"
-	"time"
 	"unsafe"
 
-	"github.com/macula-io/macula-go/connection"
 	"github.com/macula-io/macula-go/identity"
-	"github.com/macula-io/macula-go/transport"
+	"github.com/macula-io/macula-go/profile"
 )
 
-var (
-	errInvalidIdentityHandle    = errors.New("macula-php/cabi: invalid identity handle")
-	errInvalidSessionHandle     = errors.New("macula-php/cabi: invalid session handle")
-	errInvalidStreamHandle      = errors.New("macula-php/cabi: invalid stream handle")
-	errInvalidPendingCallHandle = errors.New("macula-php/cabi: invalid pending-call handle")
-)
+var errInvalidHandle = errors.New("macula-php/cabi: invalid handle")
 
 func setErr(errOut **C.char, err error) {
 	if errOut == nil || err == nil {
@@ -59,267 +47,182 @@ func setErr(errOut **C.char, err error) {
 	*errOut = C.CString(err.Error())
 }
 
-// cBytesToGo copies a C buffer into a fresh Go []byte -- used for every
-// bytes/text payload field crossing the boundary, so the returned slice
-// never aliases PHP-owned memory past the call that produced it.
-func cBytesToGo(ptr *C.uchar, length C.int) []byte {
-	if ptr == nil || length <= 0 {
+// valueOf resolves a handle to a value of type T, or ok false for a handle
+// this process never issued, one already freed, or one of another type.
+func valueOf[T any](h C.uintptr_t) (v T, ok bool) {
+	defer func() {
+		if recover() != nil {
+			ok = false
+		}
+	}()
+	if h == 0 {
+		return v, false
+	}
+	v, ok = cgo.Handle(h).Value().(T)
+	return v, ok
+}
+
+func newHandle(v any) C.uintptr_t { return C.uintptr_t(cgo.NewHandle(v)) }
+
+// release frees a handle, ignoring one already freed or never issued.
+func release(h C.uintptr_t) {
+	defer func() { _ = recover() }()
+	if h != 0 {
+		cgo.Handle(h).Delete()
+	}
+}
+
+func goBytes(p *C.uchar, n C.size_t) []byte {
+	if p == nil || n == 0 {
 		return nil
 	}
-	return C.GoBytes(unsafe.Pointer(ptr), length)
+	return C.GoBytes(unsafe.Pointer(p), C.int(n))
 }
 
-// copy32 writes src (any length) into a 32-byte C output buffer,
-// zero-padding or truncating as needed -- every node_id/realm/call_id-
-// adjacent field crossing the boundary is exactly 32 bytes by protocol
-// construction, so truncation never actually happens in practice; this
-// just avoids a panic if it somehow did.
-func copy32(dst *C.uchar, src []byte) {
-	out := unsafe.Slice((*byte)(unsafe.Pointer(dst)), 32)
-	n := copy(out, src)
-	for i := n; i < 32; i++ {
-		out[i] = 0
+func id32(p *C.uchar) ([32]byte, bool) {
+	var out [32]byte
+	if p == nil {
+		return out, false
 	}
+	copy(out[:], C.GoBytes(unsafe.Pointer(p), 32))
+	return out, true
 }
 
-// bytes32FromC reads a fixed 32-byte C buffer into a Go []byte.
-func bytes32FromC(src *C.uchar) []byte {
-	return append([]byte(nil), unsafe.Slice((*byte)(unsafe.Pointer(src)), 32)...)
-}
-
-// unsafe34 views a 34-byte C buffer (an MCID -- version+codec+32-byte
-// hash, plans/PLAN_WIRE_PROTOCOL.md §12.1) as a Go []byte, for reading
-// from or writing into.
-func unsafe34(buf *C.uchar) []byte {
-	return unsafe.Slice((*byte)(unsafe.Pointer(buf)), 34)
-}
-
-// cOutSlice views a PHP-allocated output buffer of the given length as
-// a Go []byte to copy into -- the PHP side is responsible for
-// allocating exactly this many bytes first (it always knows the length
-// up front via a paired *_len accessor).
-func cOutSlice(dst *C.uchar, length int) []byte {
-	if length <= 0 {
+// cBytes mallocs a copy of b for the caller, who frees it with
+// macula_free_bytes, and stores its length in *outLen.
+func cBytes(b []byte, outLen *C.size_t) *C.uchar {
+	*outLen = C.size_t(len(b))
+	if len(b) == 0 {
 		return nil
 	}
-	return unsafe.Slice((*byte)(unsafe.Pointer(dst)), length)
+	return (*C.uchar)(C.CBytes(b))
 }
 
 //export macula_free_string
-func macula_free_string(s *C.char) {
-	C.free(unsafe.Pointer(s))
+func macula_free_string(s *C.char) { C.free(unsafe.Pointer(s)) }
+
+//export macula_free_bytes
+func macula_free_bytes(b *C.uchar) { C.free(unsafe.Pointer(b)) }
+
+func parseProfile(name *C.char) (profile.Profile, error) {
+	if name == nil {
+		return profile.PQHybrid, nil
+	}
+	return profile.Parse(C.GoString(name))
 }
 
-// safeDeleteHandle deletes h, recovering a panic instead of letting it
-// propagate. cgo.Handle.Delete (like .Value) panics on an
-// already-deleted or otherwise invalid handle, and an unrecovered
-// panic inside any cgo-exported function is fatal to the WHOLE host
-// process -- Go's panic unwinding doesn't stop at the C caller, it
-// terminates the process outright, taking down every other in-flight
-// request this same PHP process happens to be serving, not just the
-// one holding the bad handle.
+// macula_key_generate makes a node identity key in profile ("pq_hybrid" or
+// "pq_pure", pq_hybrid when NULL) whose node_id solves the admission puzzle.
+// It takes a second or so.
 //
-// The PHP side is the primary guard (every wrapper class nulls its own
-// handle after freeing and rejects further use via handleOrFail(),
-// and __clone() on every one of them explicitly nulls the clone's copy
-// before throwing -- see e.g. KeyPair::__clone()). This is defense in
-// depth for whatever that tracking doesn't catch: a double-free must
-// cost nothing, never the whole process, same principle as
-// macula-go's own pool.deliverOne recovering a subscriber handler's
-// panic so one bad callback doesn't kill every other subscriber.
-func safeDeleteHandle(h cgo.Handle) {
-	defer func() { recover() }()
-	h.Delete()
-}
-
-//export macula_identity_generate
-func macula_identity_generate(errOut **C.char) C.uintptr_t {
-	id, err := identity.Generate()
+//export macula_key_generate
+func macula_key_generate(profileName *C.char, errOut **C.char) C.uintptr_t {
+	p, err := parseProfile(profileName)
 	if err != nil {
 		setErr(errOut, err)
 		return 0
 	}
-	return C.uintptr_t(cgo.NewHandle(id))
-}
-
-//export macula_identity_node_id
-func macula_identity_node_id(identityHandle C.uintptr_t, out32 *C.uchar) C.int {
-	id, ok := cgo.Handle(identityHandle).Value().(identity.KeyPair)
-	if !ok {
-		return -1
-	}
-	nodeID := id.NodeID()
-	dst := unsafe.Slice((*byte)(unsafe.Pointer(out32)), 32)
-	copy(dst, nodeID)
-	return 0
-}
-
-//export macula_identity_from_seed_bytes
-func macula_identity_from_seed_bytes(seed32 *C.uchar, errOut **C.char) C.uintptr_t {
-	id, err := identity.FromSeed(bytes32FromC(seed32))
+	key, err := identity.GenerateIdentityKey(p, identity.PuzzleDifficulty)
 	if err != nil {
 		setErr(errOut, err)
 		return 0
 	}
-	return C.uintptr_t(cgo.NewHandle(id))
+	return newHandle(key)
 }
 
-//export macula_identity_private_bytes
-func macula_identity_private_bytes(identityHandle C.uintptr_t, out32 *C.uchar) C.int {
-	id, ok := cgo.Handle(identityHandle).Value().(identity.KeyPair)
-	if !ok {
-		return -1
-	}
-	seed := id.Private.Seed()
-	dst := unsafe.Slice((*byte)(unsafe.Pointer(out32)), 32)
-	copy(dst, seed)
-	return 0
-}
-
-//export macula_identity_free
-func macula_identity_free(identityHandle C.uintptr_t) {
-	safeDeleteHandle(cgo.Handle(identityHandle))
-}
-
-//export macula_connect
-func macula_connect(host *C.char, port C.uint16_t, identityHandle C.uintptr_t, timeoutMs C.int, errOut **C.char) C.uintptr_t {
-	id, ok := cgo.Handle(identityHandle).Value().(identity.KeyPair)
-	if !ok {
-		setErr(errOut, errInvalidIdentityHandle)
-		return 0
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMs)*time.Millisecond)
-	defer cancel()
-
-	session, err := connection.Connect(ctx, C.GoString(host), uint16(port), transport.WebPKI{}, id)
-	if err != nil {
-		setErr(errOut, err)
-		return 0
-	}
-	return C.uintptr_t(cgo.NewHandle(session))
-}
-
-// parseSeedsCSV parses "host1[:port1],host2[:port2],..." into an
-// ordered candidate list -- port defaults to 4433 (macula-station's
-// standard QUIC port across the demo fleet) when omitted, matching
-// macula-cli's own parseHostPort. Blank entries (from a stray comma)
-// are skipped rather than erroring, so trailing/doubled commas from a
-// PHP-side implode() aren't a footgun.
-func parseSeedsCSV(csv string) ([]connection.Seed, error) {
-	parts := strings.Split(csv, ",")
-	seeds := make([]connection.Seed, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p == "" {
-			continue
-		}
-		host, portStr, err := net.SplitHostPort(p)
-		if err != nil {
-			// No port present at all -- net.SplitHostPort's own error for
-			// that case is indistinguishable from a real syntax error
-			// without string-matching it, so just retry as host-only.
-			seeds = append(seeds, connection.Seed{Host: p, Port: 4433})
-			continue
-		}
-		port, err := strconv.ParseUint(portStr, 10, 16)
-		if err != nil {
-			return nil, fmt.Errorf("macula-php/cabi: invalid port in seed %q: %w", p, err)
-		}
-		seeds = append(seeds, connection.Seed{Host: host, Port: uint16(port)})
-	}
-	if len(seeds) == 0 {
-		return nil, errors.New("macula-php/cabi: macula_connect_seeds requires at least one non-empty seed")
-	}
-	return seeds, nil
-}
-
-// macula_connect_seeds is macula_connect's multi-station counterpart:
-// seedsCSV is "host1[:port1],host2[:port2],..." (see parseSeedsCSV),
-// tried in order via connection.ConnectSeeds -- the first that
-// answers wins. A single delimited string rather than a char** array:
-// PHP's ext-ffi has no reliable way to marshal an array of C strings
-// across this boundary without inventing bespoke plumbing a plain
-// string parameter doesn't need, and this package's own scope is
-// deliberately a thin walking skeleton over macula-go's public API,
-// not new cross-language array-passing machinery.
+// macula_key_load reads the identity key file at path in profile. A file the
+// user's group or others can read, or that holds a key of another purpose or
+// profile, is refused.
 //
-//export macula_connect_seeds
-func macula_connect_seeds(seedsCSV *C.char, identityHandle C.uintptr_t, timeoutMs C.int, errOut **C.char) C.uintptr_t {
-	id, ok := cgo.Handle(identityHandle).Value().(identity.KeyPair)
-	if !ok {
-		setErr(errOut, errInvalidIdentityHandle)
-		return 0
-	}
-
-	seeds, err := parseSeedsCSV(C.GoString(seedsCSV))
+//export macula_key_load
+func macula_key_load(path, profileName *C.char, errOut **C.char) C.uintptr_t {
+	p, err := parseProfile(profileName)
 	if err != nil {
 		setErr(errOut, err)
 		return 0
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMs)*time.Millisecond)
-	defer cancel()
-
-	session, err := connection.ConnectSeeds(ctx, seeds, transport.WebPKI{}, id)
+	key, err := identity.LoadKey(C.GoString(path), identity.PurposeIdentity, p)
 	if err != nil {
 		setErr(errOut, err)
 		return 0
 	}
-	return C.uintptr_t(cgo.NewHandle(session))
+	return newHandle(key)
 }
 
-//export macula_session_accepted
-func macula_session_accepted(sessionHandle C.uintptr_t) C.int {
-	session, ok := cgo.Handle(sessionHandle).Value().(*connection.Session)
+// macula_key_save writes the key to path, readable by its owner only.
+//
+//export macula_key_save
+func macula_key_save(h C.uintptr_t, path *C.char, errOut **C.char) {
+	key, ok := valueOf[*identity.NodeKey](h)
 	if !ok {
-		return 0
-	}
-	if session.Station.Accepted {
-		return 1
-	}
-	return 0
-}
-
-//export macula_session_station_node_id
-func macula_session_station_node_id(sessionHandle C.uintptr_t, out32 *C.uchar) C.int {
-	session, ok := cgo.Handle(sessionHandle).Value().(*connection.Session)
-	if !ok {
-		return -1
-	}
-	dst := unsafe.Slice((*byte)(unsafe.Pointer(out32)), 32)
-	copy(dst, session.Station.NodeID)
-	return 0
-}
-
-//export macula_session_close
-func macula_session_close(sessionHandle C.uintptr_t, identityHandle C.uintptr_t) {
-	// safeDeleteHandle is deferred FIRST (so it runs LAST -- defers are
-	// LIFO) and unconditionally, before sessionHandle has even been
-	// validated: if the recover() below fires partway through (e.g. an
-	// invalid identityHandle), execution would otherwise return without
-	// ever reaching a trailing Delete() call, leaking the session
-	// handle (and its still-open QUIC connection) forever. Ordering
-	// this defer outermost means the handle gets deleted regardless of
-	// where -- or whether -- a panic happened above it; safeDeleteHandle
-	// has its own recover() too, so this is safe even if sessionHandle
-	// itself turns out to be invalid.
-	defer safeDeleteHandle(cgo.Handle(sessionHandle))
-	// Recovers a panic from EITHER .Value() call below (an invalid
-	// sessionHandle or identityHandle) -- see safeDeleteHandle's doc for
-	// why an unrecovered panic here is fatal to the whole process, not
-	// just this call.
-	defer func() { recover() }()
-
-	session, ok := cgo.Handle(sessionHandle).Value().(*connection.Session)
-	if !ok {
+		setErr(errOut, errInvalidHandle)
 		return
 	}
-	id, idOk := cgo.Handle(identityHandle).Value().(identity.KeyPair)
-	if !idOk {
-		return
-	}
-	_ = session.Close("normal", nil, id)
+	setErr(errOut, key.Save(C.GoString(path)))
 }
 
-func main() {} // required by -buildmode=c-shared, never actually run
+// macula_key_node_id writes the key's 32-byte node_id to out32.
+//
+//export macula_key_node_id
+func macula_key_node_id(h C.uintptr_t, out32 *C.uchar, errOut **C.char) {
+	key, ok := valueOf[*identity.NodeKey](h)
+	if !ok {
+		setErr(errOut, errInvalidHandle)
+		return
+	}
+	id, err := key.NodeID()
+	if err != nil {
+		setErr(errOut, err)
+		return
+	}
+	copy(unsafe.Slice((*byte)(unsafe.Pointer(out32)), 32), id[:])
+}
+
+// macula_key_public_key is the key as carried on the wire.
+//
+//export macula_key_public_key
+func macula_key_public_key(h C.uintptr_t, outLen *C.size_t, errOut **C.char) *C.uchar {
+	key, ok := valueOf[*identity.NodeKey](h)
+	if !ok {
+		setErr(errOut, errInvalidHandle)
+		return nil
+	}
+	return cBytes(key.PublicKey(), outLen)
+}
+
+// macula_key_profile is the key's profile name, freed with
+// macula_free_string.
+//
+//export macula_key_profile
+func macula_key_profile(h C.uintptr_t, errOut **C.char) *C.char {
+	key, ok := valueOf[*identity.NodeKey](h)
+	if !ok {
+		setErr(errOut, errInvalidHandle)
+		return nil
+	}
+	return C.CString(string(key.Profile()))
+}
+
+// macula_key_sign signs data with the key, as it is given.
+//
+//export macula_key_sign
+func macula_key_sign(h C.uintptr_t, data *C.uchar, dataLen C.size_t, outLen *C.size_t, errOut **C.char) *C.uchar {
+	key, ok := valueOf[*identity.NodeKey](h)
+	if !ok {
+		setErr(errOut, errInvalidHandle)
+		return nil
+	}
+	signature, err := key.Sign(goBytes(data, dataLen))
+	if err != nil {
+		setErr(errOut, err)
+		return nil
+	}
+	return cBytes(signature, outLen)
+}
+
+// macula_key_free frees the key's handle.
+//
+//export macula_key_free
+func macula_key_free(h C.uintptr_t) { release(h) }
+
+func main() {}

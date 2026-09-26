@@ -2,184 +2,424 @@ package main
 
 /*
 #include <stdint.h>
+#include <stdlib.h>
 */
 import "C"
 
 import (
-	"runtime/cgo"
+	"context"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"io"
+	"sync"
 	"time"
 
 	"github.com/macula-io/macula-go/cbor"
-	"github.com/macula-io/macula-go/connection"
 	"github.com/macula-io/macula-go/frame"
+	"github.com/macula-io/macula-go/pool"
+	"github.com/macula-io/macula-go/stationlink"
 )
 
-// pendingCall is the rendezvous point between the background goroutine
-// driving Session.ServeOneCall and the two, separate, later cgo calls
-// PHP makes to inspect and reply to it. Session.ServeOneCall bundles
-// "wait for a CALL, invoke a handler, send the reply" into one
-// synchronous Go call with an embedded callback -- PHP has no
-// equivalent of a Go closure to hand across the FFI boundary, so this
-// splits that one call into three: macula_serve_wait_for_call blocks
-// until the CALL arrives and returns a handle; PHP inspects it via
-// ordinary accessors; macula_pending_call_reply_result/_error resumes
-// the waiting goroutine with PHP's answer and blocks again until
-// ServeOneCall has actually sent the reply frame.
-//
-// This is plain Go concurrency (a goroutine + two channels), NOT
-// fork() -- cgo + fork() is a real, documented incompatibility
-// (golang/go#15538: fork() only duplicates the calling thread, leaving
-// a forked child's copy of the Go runtime's scheduler/netpoller
-// broken), which is why the streaming-provider example in this repo
-// uses two OS processes instead of pcntl_fork(). Goroutines have no
-// such restriction; this file never forks anything.
+// Serving: a served procedure's CALLs wait in the served handle's inbox as a
+// pending-call handle and the request as JSON, until macula_served_next takes
+// them; PHP answers with macula_pending_reply or macula_pending_error, once. A
+// call not answered by its deadline, or never taken, is answered for it with
+// an error. A streaming procedure's sessions wait there as a stream handle,
+// which PHP drives and ends.
+
+var errAnswered = errors.New("macula-php/cabi: the call was already answered")
+
+// pendingCall is a served CALL waiting for its answer.
 type pendingCall struct {
-	info    frame.CallInfo
-	replyCh chan callReply
-	doneCh  chan error
+	once   sync.Once
+	answer chan pendingAnswer
 }
 
-type callReply struct {
-	isError bool
-	value   cbor.Value // RESULT payload, when !isError
-	detail  *string    // ERROR detail, when isError
+type pendingAnswer struct {
+	payload cbor.Value
+	err     error
 }
 
-//export macula_serve_wait_for_call
-func macula_serve_wait_for_call(sessionHandle C.uintptr_t, identityHandle C.uintptr_t, timeoutMs C.int, errOut **C.char) C.uintptr_t {
-	session, id, err := sessionAndIdentity(sessionHandle, identityHandle)
+func requestJSON(r stationlink.Request, mode bytesOutput) string {
+	text, _ := json.Marshal(map[string]any{
+		"caller": hex.EncodeToString(r.Caller[:]), "realm": hex.EncodeToString(r.Realm[:]),
+		"procedure": r.Procedure, "payload": cborToJSON(r.Payload, mode), "deadline_ms": r.Deadline.UnixMilli(),
+	})
+	return string(text)
+}
+
+// served is a served procedure with the inbox its calls or sessions wait in.
+type served struct {
+	served *pool.Served
+	box    *inbox
+}
+
+// macula_pool_serve serves procedure in realm with on_call: each CALL is handed
+// over as a pending-call handle and the request's JSON {caller, realm,
+// procedure, payload, deadline_ms}. The returned handle is given back to
+// macula_served_stop.
+//
+//export macula_pool_serve
+func macula_pool_serve(h C.uintptr_t, realm32 *C.uchar, procedure *C.char, bytesMode C.int,
+	errOut **C.char) C.uintptr_t {
+	p, ok := valueOf[*pool.Pool](h)
+	if !ok {
+		setErr(errOut, errInvalidHandle)
+		return 0
+	}
+	mode, err := parseBytesOutput(int(bytesMode))
 	if err != nil {
 		setErr(errOut, err)
 		return 0
 	}
-
-	callCh := make(chan frame.CallInfo, 1)
-	replyCh := make(chan callReply, 1)
-	doneCh := make(chan error, 1)
-
-	lookup := func(realm []byte, procedure string) (connection.CallHandler, bool) {
-		return connection.CallHandler(func(payload cbor.Value) (cbor.Value, error) {
-			callCh <- frame.CallInfo{
-				Procedure: procedure,
-				Realm:     append([]byte(nil), realm...),
-				Payload:   payload,
-			}
-			reply := <-replyCh
-			if reply.isError {
-				detail := ""
-				if reply.detail != nil {
-					detail = *reply.detail
-				}
-				return cbor.Null(), errServeReply(detail)
-			}
-			return reply.value, nil
-		}), true
-	}
-
-	go func() {
-		doneCh <- session.ServeOneCall(lookup, id, time.Duration(timeoutMs)*time.Millisecond)
-	}()
-
-	select {
-	case info := <-callCh:
-		return C.uintptr_t(cgo.NewHandle(&pendingCall{info: info, replyCh: replyCh, doneCh: doneCh}))
-	case err := <-doneCh:
-		// ServeOneCall returned without ever reaching the handler --
-		// a timeout, or a transport-level error.
-		if err != nil {
-			setErr(errOut, err)
+	realm, _ := id32(realm32)
+	box := newInbox(inboxCapacity)
+	handler := func(ctx context.Context, r stationlink.Request) (cbor.Value, error) {
+		pending := &pendingCall{answer: make(chan pendingAnswer, 1)}
+		ph := newHandle(pending)
+		defer release(ph)
+		if !box.push(ctx, inboxItem{handle: uintptr(ph), json: requestJSON(r, mode)}) {
+			return cbor.Value{}, errors.New("not taken by its deadline")
 		}
+		select {
+		case answer := <-pending.answer:
+			return answer.payload, answer.err
+		case <-ctx.Done():
+			return cbor.Value{}, errors.New("not answered by its deadline")
+		}
+	}
+	offered, err := p.Serve(context.Background(), pool.Offer{Realm: realm, Procedure: C.GoString(procedure), Handler: handler})
+	if err != nil {
+		setErr(errOut, err)
 		return 0
 	}
+	return newHandle(&served{served: offered, box: box})
 }
 
-type errServeReply string
-
-func (e errServeReply) Error() string { return string(e) }
-
-//export macula_pending_call_procedure
-func macula_pending_call_procedure(pendingHandle C.uintptr_t) *C.char {
-	pending, _ := cgo.Handle(pendingHandle).Value().(*pendingCall)
-	return C.CString(pending.info.Procedure)
-}
-
-//export macula_pending_call_realm
-func macula_pending_call_realm(pendingHandle C.uintptr_t, out32 *C.uchar) {
-	pending, _ := cgo.Handle(pendingHandle).Value().(*pendingCall)
-	copy32(out32, pending.info.Realm)
-}
-
-//export macula_pending_call_payload_kind
-func macula_pending_call_payload_kind(pendingHandle C.uintptr_t) C.int {
-	pending, _ := cgo.Handle(pendingHandle).Value().(*pendingCall)
-	kind, _, _, _ := goValueToPhp(pending.info.Payload)
-	return C.int(kind)
-}
-
-//export macula_pending_call_payload_int
-func macula_pending_call_payload_int(pendingHandle C.uintptr_t) C.longlong {
-	pending, _ := cgo.Handle(pendingHandle).Value().(*pendingCall)
-	_, n, _, _ := goValueToPhp(pending.info.Payload)
-	return C.longlong(n)
-}
-
-//export macula_pending_call_payload_float
-func macula_pending_call_payload_float(pendingHandle C.uintptr_t) C.double {
-	pending, _ := cgo.Handle(pendingHandle).Value().(*pendingCall)
-	_, _, _, f := goValueToPhp(pending.info.Payload)
-	return C.double(f)
-}
-
-//export macula_pending_call_payload_bytes_len
-func macula_pending_call_payload_bytes_len(pendingHandle C.uintptr_t) C.int {
-	pending, _ := cgo.Handle(pendingHandle).Value().(*pendingCall)
-	_, _, b, _ := goValueToPhp(pending.info.Payload)
-	return C.int(len(b))
-}
-
-//export macula_pending_call_payload_bytes
-func macula_pending_call_payload_bytes(pendingHandle C.uintptr_t, out *C.uchar) {
-	pending, _ := cgo.Handle(pendingHandle).Value().(*pendingCall)
-	_, _, b, _ := goValueToPhp(pending.info.Payload)
-	copy(cOutSlice(out, len(b)), b)
-}
-
-//export macula_pending_call_reply_result
-func macula_pending_call_reply_result(
-	pendingHandle C.uintptr_t,
-	kind C.int, intVal C.longlong, bytesVal *C.uchar, bytesLen C.int, floatVal C.double,
-	errOut **C.char,
-) {
-	pending, ok := cgo.Handle(pendingHandle).Value().(*pendingCall)
+// macula_served_next takes the next call (a pending-call handle) or session (a
+// stream handle) of a served procedure, waiting at most timeout_ms. It returns
+// the request's JSON {caller, realm, procedure, payload, deadline_ms} and sets
+// *handle; or NULL with *closed set when the procedure was stopped; or NULL
+// with *closed unset when nothing arrived in time.
+//
+//export macula_served_next
+func macula_served_next(h C.uintptr_t, timeoutMs C.int, handle *C.uintptr_t, closed *C.int,
+	errOut **C.char) *C.char {
+	s, ok := valueOf[*served](h)
 	if !ok {
-		setErr(errOut, errInvalidPendingCallHandle)
+		setErr(errOut, errInvalidHandle)
+		return nil
+	}
+	item, state := s.box.next(time.Duration(timeoutMs) * time.Millisecond)
+	return handedOver(item, state, handle, closed)
+}
+
+func answer(h C.uintptr_t, a pendingAnswer, errOut **C.char) {
+	pending, ok := valueOf[*pendingCall](h)
+	if !ok {
+		setErr(errOut, errInvalidHandle)
 		return
 	}
-	pending.replyCh <- callReply{value: phpValueToGo(kind, intVal, bytesVal, bytesLen, floatVal)}
-	if err := <-pending.doneCh; err != nil {
-		setErr(errOut, err)
+	sent := false
+	pending.once.Do(func() {
+		pending.answer <- a
+		sent = true
+	})
+	if !sent {
+		setErr(errOut, errAnswered)
 	}
 }
 
-//export macula_pending_call_reply_error
-func macula_pending_call_reply_error(pendingHandle C.uintptr_t, detail *C.char, errOut **C.char) {
-	pending, ok := cgo.Handle(pendingHandle).Value().(*pendingCall)
-	if !ok {
-		setErr(errOut, errInvalidPendingCallHandle)
+// macula_pending_reply answers a served call with result (JSON).
+//
+//export macula_pending_reply
+func macula_pending_reply(h C.uintptr_t, resultJSON *C.char, errOut **C.char) {
+	result, err := jsonToCbor(C.GoString(resultJSON))
+	if err != nil {
+		setErr(errOut, err)
 		return
 	}
-	var d *string
-	if detail != nil {
-		s := C.GoString(detail)
-		d = &s
+	answer(h, pendingAnswer{payload: result}, errOut)
+}
+
+// macula_pending_error answers a served call with a handler_error carrying
+// message.
+//
+//export macula_pending_error
+func macula_pending_error(h C.uintptr_t, message *C.char, errOut **C.char) {
+	answer(h, pendingAnswer{err: errors.New(C.GoString(message))}, errOut)
+}
+
+// macula_served_stop withdraws the procedure everywhere and frees the handle.
+//
+//export macula_served_stop
+func macula_served_stop(h C.uintptr_t, errOut **C.char) {
+	s, ok := valueOf[*served](h)
+	if !ok {
+		setErr(errOut, errInvalidHandle)
+		return
 	}
-	pending.replyCh <- callReply{isError: true, detail: d}
-	if err := <-pending.doneCh; err != nil {
+	setErr(errOut, s.served.Stop())
+	s.box.close()
+	release(h)
+}
+
+func streamMode(mode C.int) (frame.StreamMode, error) {
+	switch frame.StreamMode(mode) {
+	case frame.ServerStream, frame.ClientStream, frame.Bidi:
+		return frame.StreamMode(mode), nil
+	}
+	return 0, errors.New("macula-php/cabi: a stream mode is 0 (server), 1 (client) or 2 (bidi)")
+}
+
+// macula_pool_serve_stream serves procedure in realm as a stream of mode: each
+// session is handed to on_stream as a stream handle and the request's JSON.
+// The session lives until the PHP side ends it, or its peer does; the
+// stream handle is freed with macula_stream_free.
+//
+//export macula_pool_serve_stream
+func macula_pool_serve_stream(h C.uintptr_t, realm32 *C.uchar, procedure *C.char, mode C.int,
+	bytesMode C.int, errOut **C.char) C.uintptr_t {
+	p, ok := valueOf[*pool.Pool](h)
+	if !ok {
+		setErr(errOut, errInvalidHandle)
+		return 0
+	}
+	bytes, err := parseBytesOutput(int(bytesMode))
+	if err != nil {
 		setErr(errOut, err)
+		return 0
+	}
+	m, err := streamMode(mode)
+	if err != nil {
+		setErr(errOut, err)
+		return 0
+	}
+	realm, _ := id32(realm32)
+	box := newInbox(inboxCapacity)
+	handler := func(ctx context.Context, s *stationlink.Stream) error {
+		sh := newHandle(s)
+		open := s.Request()
+		request := requestJSON(stationlink.Request{Caller: open.Caller, Realm: open.Realm, Procedure: open.Procedure,
+			Payload: open.Payload, Deadline: time.UnixMilli(int64(open.Deadline))}, bytes)
+		if !box.push(ctx, inboxItem{handle: uintptr(sh), json: request}) {
+			release(sh)
+			return errors.New("not taken by its deadline")
+		}
+		<-s.Done()
+		return nil
+	}
+	offered, err := p.Serve(context.Background(), pool.Offer{Realm: realm, Procedure: C.GoString(procedure),
+		Stream: &stationlink.StreamOffer{Mode: m, Handler: handler}})
+	if err != nil {
+		setErr(errOut, err)
+		return 0
+	}
+	return newHandle(&served{served: offered, box: box})
+}
+
+// macula_pool_open_stream opens a stream of mode on procedure in realm at a
+// provider (any trusted one when provider32 is NULL), with payload as the
+// open's, its deadline deadline_ms ahead (30 s when 0).
+//
+//export macula_pool_open_stream
+func macula_pool_open_stream(h C.uintptr_t, realm32 *C.uchar, procedure *C.char, mode C.int, payloadJSON *C.char,
+	provider32 *C.uchar, deadlineMs C.int64_t, timeoutMs C.int64_t, errOut **C.char) C.uintptr_t {
+	p, ok := valueOf[*pool.Pool](h)
+	if !ok {
+		setErr(errOut, errInvalidHandle)
+		return 0
+	}
+	m, err := streamMode(mode)
+	if err != nil {
+		setErr(errOut, err)
+		return 0
+	}
+	payload, err := jsonToCbor(C.GoString(payloadJSON))
+	if err != nil {
+		setErr(errOut, err)
+		return 0
+	}
+	realm, _ := id32(realm32)
+	provider, _ := id32(provider32)
+	ctx, cancel := withTimeout(timeoutMs)
+	defer cancel()
+	s, err := p.OpenStream(ctx, pool.StreamCall{Realm: realm, Procedure: C.GoString(procedure), Provider: provider,
+		Mode: m, Payload: payload, Deadline: time.Duration(deadlineMs) * time.Millisecond})
+	if err != nil {
+		setErr(errOut, err)
+		return 0
+	}
+	return newHandle(s)
+}
+
+func streamOf(h C.uintptr_t, errOut **C.char) *stationlink.Stream {
+	s, ok := valueOf[*stationlink.Stream](h)
+	if !ok {
+		setErr(errOut, errInvalidHandle)
+		return nil
+	}
+	return s
+}
+
+// macula_stream_send_bytes sends a raw chunk.
+//
+//export macula_stream_send_bytes
+func macula_stream_send_bytes(h C.uintptr_t, data *C.uchar, dataLen C.size_t, errOut **C.char) {
+	if s := streamOf(h, errOut); s != nil {
+		setErr(errOut, s.Send(goBytes(data, dataLen)))
 	}
 }
 
-//export macula_pending_call_free
-func macula_pending_call_free(pendingHandle C.uintptr_t) {
-	safeDeleteHandle(cgo.Handle(pendingHandle))
+// macula_stream_send_json sends a structured chunk.
+//
+//export macula_stream_send_json
+func macula_stream_send_json(h C.uintptr_t, valueJSON *C.char, errOut **C.char) {
+	s := streamOf(h, errOut)
+	if s == nil {
+		return
+	}
+	v, err := jsonToCbor(C.GoString(valueJSON))
+	if err != nil {
+		setErr(errOut, err)
+		return
+	}
+	setErr(errOut, s.SendValue(v))
+}
+
+// macula_stream_close_send ends this side's sending.
+//
+//export macula_stream_close_send
+func macula_stream_close_send(h C.uintptr_t, errOut **C.char) {
+	if s := streamOf(h, errOut); s != nil {
+		setErr(errOut, s.CloseSend())
+	}
+}
+
+// macula_stream_close ends the stream on both sides.
+//
+//export macula_stream_close
+func macula_stream_close(h C.uintptr_t, errOut **C.char) {
+	if s := streamOf(h, errOut); s != nil {
+		setErr(errOut, s.Close())
+	}
+}
+
+// macula_stream_reply sends the provider's terminal value (JSON).
+//
+//export macula_stream_reply
+func macula_stream_reply(h C.uintptr_t, payloadJSON *C.char, errOut **C.char) {
+	s := streamOf(h, errOut)
+	if s == nil {
+		return
+	}
+	v, err := jsonToCbor(C.GoString(payloadJSON))
+	if err != nil {
+		setErr(errOut, err)
+		return
+	}
+	setErr(errOut, s.Reply(v))
+}
+
+// macula_stream_abort ends the stream with a STREAM_ERROR of code and message.
+//
+//export macula_stream_abort
+func macula_stream_abort(h C.uintptr_t, code, message *C.char, errOut **C.char) {
+	if s := streamOf(h, errOut); s != nil {
+		setErr(errOut, s.Abort(C.GoString(code), C.GoString(message)))
+	}
+}
+
+// macula_stream_recv waits up to timeout_ms (forever when 0) for the peer's
+// next frame and returns it as JSON: {kind: "data", encoding, body}, {kind:
+// "end", role}, {kind: "reply", payload}, {kind: "eof"} after a normal end,
+// {kind: "error", code, message, relay} for a stream error, or the error
+// "timeout".
+//
+//export macula_stream_recv
+func macula_stream_recv(h C.uintptr_t, timeoutMs C.int64_t, bytesMode C.int, errOut **C.char) *C.char {
+	s := streamOf(h, errOut)
+	if s == nil {
+		return nil
+	}
+	mode, err := parseBytesOutput(int(bytesMode))
+	if err != nil {
+		setErr(errOut, err)
+		return nil
+	}
+	ctx, cancel := withTimeout(timeoutMs)
+	defer cancel()
+	event, err := s.Recv(ctx)
+	var out map[string]any
+	var streamErr *stationlink.StreamError
+	switch {
+	case err == nil:
+		out = eventJSON(event, mode)
+	case errors.Is(err, io.EOF):
+		out = map[string]any{"kind": "eof"}
+	case errors.As(err, &streamErr):
+		out = map[string]any{"kind": "error", "code": streamErr.Code, "message": streamErr.Message, "relay": boolText(streamErr.Relay)}
+	case errors.Is(err, context.DeadlineExceeded):
+		setErr(errOut, errors.New("timeout"))
+		return nil
+	default:
+		setErr(errOut, err)
+		return nil
+	}
+	text, _ := json.Marshal(out)
+	return C.CString(string(text))
+}
+
+// boolText is a flag as the JSON crossing this boundary carries it: 1 or 0,
+// never a boolean.
+func boolText(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+func eventJSON(e stationlink.StreamEvent, mode bytesOutput) map[string]any {
+	switch e.Kind {
+	case stationlink.StreamEnd:
+		return map[string]any{"kind": "end", "role": e.Role.Name()}
+	case stationlink.StreamReply:
+		return map[string]any{"kind": "reply", "payload": cborToJSON(e.Payload, mode)}
+	}
+	return map[string]any{"kind": "data", "encoding": e.Encoding.Name(), "body": cborToJSON(e.Body, mode)}
+}
+
+// macula_stream_request is the stream's open as JSON {caller, realm,
+// procedure, payload, deadline_ms}.
+//
+//export macula_stream_request
+func macula_stream_request(h C.uintptr_t, bytesMode C.int, errOut **C.char) *C.char {
+	s := streamOf(h, errOut)
+	if s == nil {
+		return nil
+	}
+	mode, err := parseBytesOutput(int(bytesMode))
+	if err != nil {
+		setErr(errOut, err)
+		return nil
+	}
+	open := s.Request()
+	return C.CString(requestJSON(stationlink.Request{Caller: open.Caller, Realm: open.Realm, Procedure: open.Procedure,
+		Payload: open.Payload, Deadline: time.UnixMilli(int64(open.Deadline))}, mode))
+}
+
+// macula_stream_free frees the stream's handle, aborting the stream first when
+// it has not ended.
+//
+//export macula_stream_free
+func macula_stream_free(h C.uintptr_t) {
+	if s, ok := valueOf[*stationlink.Stream](h); ok {
+		select {
+		case <-s.Done():
+		default:
+			_ = s.Abort("cancelled", "the stream was released")
+		}
+	}
+	release(h)
 }
