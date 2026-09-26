@@ -20,7 +20,8 @@
 ---
 
 > **Status, 2026-09-26:** on the **macula 12** wire (post-quantum: ML-DSA-87
-> identities, ML-KEM hybrid key exchange, signed requests), over macula-go
+> identities, as the ML-DSA-87 + RSA-PSS-4096 composite in pq_hybrid, the
+> fleet's profile; ML-KEM hybrid key exchange; signed requests), over macula-go
 > v0.12.0's pool. Calls and streams by direct dial, serving (under an org or in
 > a node's own namespace), publish/subscribe, the DHT and node-served content
 > are tested against in-process macula 12 stations on every `composer test`.
@@ -35,8 +36,8 @@ pins by node_id, calls and streams that reach a provider by direct dial,
 serving procedures, publish/subscribe, node-served content and the DHT. It is
 an FFI binding over [macula-go](https://github.com/macula-io/macula-go): the Go
 SDK is compiled into one shared library, `libmacula.so`, which PHP loads with
-`ext-ffi`, rather than a third implementation of QUIC, post-quantum TLS,
-deterministic CBOR and signed frames.
+`ext-ffi`, rather than a third implementation of QUIC, TLS 1.3 with a hybrid
+post-quantum key exchange, deterministic CBOR and signed frames.
 
 ## Quick start
 
