@@ -31,6 +31,8 @@ final class Binding
         char *macula_key_profile(uintptr_t h, char **err_out);
         unsigned char *macula_key_sign(uintptr_t h, unsigned char *data, size_t data_len, size_t *out_len, char **err_out);
         void macula_key_free(uintptr_t h);
+        int macula_verify(unsigned char *data, size_t data_len, unsigned char *signature, size_t signature_len,
+            unsigned char *public_key, size_t public_key_len, char *profile, char **err_out);
 
         uintptr_t macula_pool_connect(uintptr_t key, char *seeds_json, char *opts_json, char **err_out);
         void macula_pool_close(uintptr_t h);

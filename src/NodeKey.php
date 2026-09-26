@@ -86,6 +86,22 @@ final class NodeKey
         return Binding::takeBytes($b, $n->cdata);
     }
 
+    /**
+     * Whether signature is valid over message for a public key as carried on
+     * the wire (NodeKey::publicKey), under profile: ML-DSA-87 in pq_pure, and in
+     * pq_hybrid the LAMPS composite id-MLDSA87-RSA4096-PSS-SHA512 with the
+     * empty context, both halves verified. Anything malformed is false.
+     */
+    public static function verify(string $message, string $signature, string $publicKey,
+        Profile $profile = Profile::PqHybrid): bool
+    {
+        $m = Binding::buffer($message);
+        $s = Binding::buffer($signature);
+        $k = Binding::buffer($publicKey);
+        return Binding::call(fn ($err) => Binding::ffi()->macula_verify($m, strlen($message), $s, strlen($signature), $k,
+            strlen($publicKey), $profile->value, $err)) === 1;
+    }
+
     /** Frees the native key. The NodeKey is unusable after. */
     public function free(): void
     {

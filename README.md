@@ -123,7 +123,7 @@ compatibility layer.
 
 | Primitive | Caller | Provider | Notes |
 |---|---|---|---|
-| Node keys (`NodeKey`) | ✅ | ✅ | `pq_hybrid` (the fleet's) or `pq_pure`; key files readable by the owner only |
+| Node keys (`NodeKey`) | ✅ | ✅ | `pq_hybrid` (the fleet's) or `pq_pure`; key files readable by the owner only; `sign` and `verify`, pq_hybrid checked against the LAMPS draft's own vector and cross-verified with macula 12.7.0 |
 | Pool of station links (`Pool::connect`) | ✅ | ✅ | Seeds pinned by node_id; realm keys pinned; links redialed with subscriptions and served procedures replayed |
 | Calls by direct dial (`call`, `providers`) | ✅ | ✅ | Errors arrive as `ProviderError` / `RelayError` |
 | A node's own namespace (`ownProcedure`) | ✅ | ✅ | `~<node_id>/<name>`: served and called with no org and no realm key; the node's signature authorizes it |
@@ -203,6 +203,13 @@ unreleased), pubsub, node-served content and the DHT, through the real library.
 A provider a test calls runs in a PHP process of its own
 (`tests/fixtures/provider.php`). No network is needed. The suite needs PHP ≥
 8.3 (PHPUnit 12's floor); the library itself runs on PHP ≥ 8.1.
+
+`tests/LampsCompositeTest.php` holds pq_hybrid, the LAMPS composite
+id-MLDSA87-RSA4096-PSS-SHA512, to `draft-ietf-lamps-pq-composite-sigs`' own
+vector (the one macula and macula-go check), and to composites that crossed
+both ways with macula 12.x. `scripts/cross-verify-macula.sh` renews those: this
+SDK signs, macula (from hex, in the image macula's own CI runs in) verifies
+and signs its own, and this SDK verifies it.
 
 `tests/live/FleetTest.php` runs against one real station and is not part of
 `composer test`. It needs `MACULA_PHP_LIVE_SEED` (host:port),
