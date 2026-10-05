@@ -170,6 +170,9 @@ final class Pool
         if ($provider !== null) {
             $opts['provider'] = bin2hex(Wire::id32($provider, 'provider'));
         }
+        if ($ucan === '') {
+            throw new \InvalidArgumentException('macula-php: a UCAN is never empty; pass null for none');
+        }
         if ($ucan !== null) {
             $opts['ucan'] = $ucan;
         }

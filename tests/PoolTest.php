@@ -246,6 +246,26 @@ final class PoolTest extends TestCase
         }
     }
 
+    public function testAnEmptyUcanIsRefusedBeforeItReachesTheWire(): void
+    {
+        $caller = $this->node(0);
+        try {
+            $this->expectExceptionMessageMatches('/never empty/');
+            $caller->call(self::$env->realmId, self::$env->org . '/echo', ucan: '');
+        } finally {
+            $caller->close();
+        }
+    }
+
+    public function testARealmMemberPolicyTakesItsKeyIdAsAnyIdIsTaken(): void
+    {
+        $id = str_repeat('ab', 32);
+        self::assertSame($id, \Macula\ServePolicy::realmMemberRequired(strtoupper($id), 'call')->toArray()['key_id']);
+        self::assertSame($id, \Macula\ServePolicy::realmMemberRequired(hex2bin($id), 'call')->toArray()['key_id']);
+        $this->expectException(\InvalidArgumentException::class);
+        \Macula\ServePolicy::realmMemberRequired('abcd', 'call');
+    }
+
     public function testANodesOwnNamespaceIsServedAndCalledWithNoRealmKeyPinned(): void
     {
         $provider = ProviderProcess::start(self::$env, 'ring', 0, admitted: false, trusted: false);

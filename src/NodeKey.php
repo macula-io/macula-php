@@ -98,14 +98,14 @@ final class NodeKey
             strlen($publicKey), $profile->value, $err)) === 1;
     }
 
-    /** Frees the native key. The NodeKey is unusable after. */
     /**
      * This identity key's UCAN for the node audience names (64 hex characters
      * or 32 bytes), granting caps, a list of ['with' => <an MRI>, 'can' =>
      * ...] (`mri:realm:<realm name>`, `mri:org:<realm>/<org>`,
      * `mri:proc:<realm>/<org>/<name>`), until expS (Unix seconds). A delegated
      * token names its parent in prf by Ucan::proofId; the audience is always
-     * the node that will present it.
+     * the node that will present it. fct, when given, is null or an object
+     * (new \stdClass() or a decoded JSON object), never a PHP array.
      *
      * @param list<array{with: string, can: string}> $caps
      * @param list<string> $prf
@@ -129,6 +129,7 @@ final class NodeKey
             $capsJson, $expS, $optionsJson, $err)));
     }
 
+    /** Frees the native key. The NodeKey is unusable after. */
     public function free(): void
     {
         if ($this->handle !== null) {

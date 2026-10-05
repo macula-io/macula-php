@@ -29,7 +29,6 @@ final class Stream implements \IteratorAggregate
             Binding::ffi()->macula_stream_request($h, $err))), $this->bytes);
     }
 
-    /** Sends a raw chunk. */
     /** A caller stream's seal report, once it settled on the provider's first
      * data or reply (on a clear stream, its first data, reply or end). Before
      * that, a MaculaException of kind "not_settled"; on a served stream,
@@ -41,6 +40,7 @@ final class Stream implements \IteratorAggregate
             Binding::ffi()->macula_stream_report($h, $err)))));
     }
 
+    /** Sends a raw chunk. */
     public function send(string $chunk): void
     {
         $h = $this->live();

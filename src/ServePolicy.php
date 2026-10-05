@@ -26,17 +26,14 @@ final class ServePolicy
         return new self(['kind' => 'ucan_required', 'issuer' => bin2hex(Wire::id32($issuerNodeId, 'the issuer'))]);
     }
 
-    /** A chain rooted at the realm key whose id keyId names (hex), granting
-     * can. */
+    /** A chain rooted at the realm key whose id keyId names (64 hex
+     * characters or 32 bytes), granting can. */
     public static function realmMemberRequired(string $keyId, string $can): self
     {
-        if ($keyId === '' || !ctype_xdigit($keyId) || strlen($keyId) % 2 !== 0) {
-            throw new \InvalidArgumentException('macula-php: a realm key id is hex');
-        }
         if ($can === '') {
             throw new \InvalidArgumentException('macula-php: a realm member policy names a can');
         }
-        return new self(['kind' => 'realm_member_required', 'key_id' => strtolower($keyId), 'can' => $can]);
+        return new self(['kind' => 'realm_member_required', 'key_id' => bin2hex(Wire::id32($keyId, 'the realm key id')), 'can' => $can]);
     }
 
     /** @internal The policy as libmacula's policy_json takes it. @return array<string, string> */
