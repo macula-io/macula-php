@@ -19,15 +19,17 @@
 
 ---
 
-> **Status, 2026-09-26:** on the **macula 12** wire (post-quantum: ML-DSA-87
-> identities, as the ML-DSA-87 + RSA-PSS-4096 composite in pq_hybrid, the
-> fleet's profile; ML-KEM hybrid key exchange; signed requests), over macula-go
-> v0.12.0's pool. Calls and streams by direct dial, serving (under an org or in
-> a node's own namespace), publish/subscribe, the DHT and node-served content
-> are tested against in-process macula 12 stations on every `composer test`.
-> UCAN-gated calls are not here yet; see [Not yet
-> implemented](#not-yet-implemented). Releases before 0.5.0 speak the retired
-> 10.x wire and cannot reach the current fleet.
+> **Status, 2026-10-05:** over macula-go's **released** libmacula (the tag in
+> `abi/MACULA_GO_REF`, ABI 1), so on the macula 13 wire: handshake v5 bound to
+> the TLS session, end-to-end sealed calls and streams to a provider that
+> advertises a KEM key (`Confidentiality`), post-quantum identities (ML-DSA-87,
+> as the ML-DSA-87 + RSA-PSS-4096 composite in pq_hybrid, the fleet's profile)
+> and ML-KEM hybrid key exchange. Calls and streams by direct dial, serving
+> (under an org or in a node's own namespace), publish/subscribe, the DHT and
+> node-served content are tested against in-process stations on every
+> `composer test`. UCAN-gated calls are not in the PHP API yet; see [Not yet
+> implemented](#not-yet-implemented). Releases before 0.7.0 bind macula-go
+> v0.12.0 and cannot call a provider that advertises a KEM key.
 
 ## What is this?
 
@@ -35,15 +37,15 @@ A PHP SDK for the Macula mesh: a node's key, a pool of links to stations it
 pins by node_id, calls and streams that reach a provider by direct dial,
 serving procedures, publish/subscribe, node-served content and the DHT. It is
 an FFI binding over [macula-go](https://github.com/macula-io/macula-go): the Go
-SDK is compiled into one shared library, `libmacula.so`, which PHP loads with
-`ext-ffi`, rather than a third implementation of QUIC, TLS 1.3 with a hybrid
+SDK's released shared library, libmacula, which PHP loads with `ext-ffi`,
+rather than a third implementation of QUIC, TLS 1.3 with a hybrid
 post-quantum key exchange, deterministic CBOR and signed frames.
 
 ## Quick start
 
 ```bash
 composer require macula-io/macula-php
-cd vendor/macula-io/macula-php && composer build   # compiles cabi/ into libmacula.so
+cd vendor/macula-io/macula-php && composer build   # fetches and checks libmacula
 ```
 
 A node needs a station to link to, **pinned by its node_id**, and the key of
@@ -125,7 +127,8 @@ compatibility layer.
 |---|---|---|---|
 | Node keys (`NodeKey`) | ✅ | ✅ | `pq_hybrid` (the fleet's) or `pq_pure`; key files readable by the owner only; `sign` and `verify`, pq_hybrid checked against the LAMPS draft's own vector and cross-verified with macula 12.7.0 |
 | Pool of station links (`Pool::connect`) | ✅ | ✅ | Seeds pinned by node_id; realm keys pinned; links redialed with subscriptions and served procedures replayed |
-| Calls by direct dial (`call`, `providers`) | ✅ | ✅ | Errors arrive as `ProviderError` / `RelayError` |
+| Calls by direct dial (`call`, `providers`) | ✅ | ✅ | Errors arrive as `ProviderError` / `RelayError`; every other failure is a `MaculaException` whose `kind` is the library's error kind |
+| End-to-end sealing (`confidential:`, `kemAdvertise:`) | ✅ | ✅ | A call or stream is sealed whenever the provider's advertisement names a KEM key; `Confidentiality::Required` fails with `ConfidentialityError` rather than go in the clear; a served `Request` says whether it came `sealed` |
 | A node's own namespace (`ownProcedure`) | ✅ | ✅ | `~<node_id>/<name>`: served and called with no org and no realm key; the node's signature authorizes it |
 | Streams (`openStream`, `serveStream`) | ✅ | ✅ | Server, client and bidi; a QUIC stream per session, released on every path |
 | Publish/subscribe | ✅ | ✅ | Signed publications, delivered once across links |
@@ -168,38 +171,40 @@ bytes, and come back as hex.
 ## Architecture
 
 ```
-src/ (PHP API)  ──  src/Binding.php (ext-ffi)  ──  cabi/ (Go, libmacula.so)  ──  macula-go pool
+src/ (PHP API)  ──  src/Binding.php (ext-ffi)  ──  libmacula (macula-go's C ABI)  ──  macula-go pool
 ```
 
-`cabi/` exports C functions over macula-go's `pool` (and `stationlink`
-streams). Every Go value crosses as a `runtime/cgo.Handle`; payloads cross as
-JSON. Every call that does network I/O blocks the calling PHP thread. PHP's FFI
-cannot take a callback on a Go thread, so what arrives on its own (a
-subscription's events, a served procedure's calls, a streaming procedure's
-sessions) waits in a bounded inbox in `cabi/inbox.go` until a `*_next`
-function takes it, with a wait of its own.
+libmacula is macula-go's C ABI (`abi/macula.h`, its contract in macula-go's
+`cabi/CONTRACT.md`), the same library macula-py, Macula .NET and macula-ts
+load. `composer build` downloads it for the tag in `abi/MACULA_GO_REF`, checks
+it against the release's `SHA256SUMS` and build attestation, and refuses a
+release whose `macula.h` is not `abi/macula.h`; `Binding` refuses a library of
+another ABI version. Payloads cross as JSON. Every call that does network I/O
+blocks the calling PHP thread. What arrives on its own (a subscription's
+events, a served procedure's calls, a streaming procedure's sessions) waits in
+a bounded inbox in the library until a `*_next` function takes it.
 
 ## Not yet implemented
 
-- **UCAN-gated calls and serving.** macula 12 uses post-quantum UCANs
-  (macula-go#2). Calls carry no token yet, and a gated procedure cannot be
-  served.
+- **UCAN-gated calls and serving.** libmacula has them
+  (`macula_pool_call_opts` with a "ucan", `macula_pool_serve_opts` with a
+  policy); the PHP API does not expose them yet.
+- **The seal report** (`report`, `macula_stream_report`): not in the PHP API.
 
 ## Testing
 
 ```bash
 composer install
-composer build        # libmacula.so and build/teststation
+composer build        # libmacula into build/native, and build/teststation
 composer test         # the offline suite
 composer test:live    # one live station, see below
 ```
 
-`composer test` runs `tests/PoolTest.php` against `cabi/cmd/teststation`, a
-helper that runs two in-process macula 12 stations (macula-go's `teststation`)
-sharing a DHT, with a test realm that admits the test's provider nodes. It
+`composer test` runs `tests/PoolTest.php` against macula-go's teststation at
+the same tag, which runs two in-process stations sharing a DHT, with a test realm that admits the test's provider nodes. It
 exercises keys, calls by direct dial and their errors, providers, server and
 client streams and a provider that aborts one (and that no stream is left
-unreleased), pubsub, node-served content and the DHT, through the real library.
+unreleased), a sealed call and a required call refused in the clear, pubsub, node-served content and the DHT, through the real library.
 A provider a test calls runs in a PHP process of its own
 (`tests/fixtures/provider.php`). No network is needed. The suite needs PHP ≥
 8.3 (PHPUnit 12's floor); the library itself runs on PHP ≥ 8.1.
@@ -222,8 +227,8 @@ key generated for the run and never saved, it reads the DHT, calls
 
 - PHP ≥ 8.1 with `ext-ffi`. `ext-ffi` is not always enabled in distro PHP
   builds: check `php -m | grep FFI`; PHP is built with it by `--with-ffi`.
-- Go ≥ 1.26 and a C compiler (cgo), to build `cabi/`. `composer build` is the
-  only Go command you run; you never write Go.
+- `gh` with a `GH_TOKEN` and `sha256sum`, for `composer build` to fetch and
+  check libmacula. Go 1.27, only for the test suite's teststation.
 - Composer.
 
 ## Sibling SDKs
@@ -232,7 +237,7 @@ key generated for the run and never saved, it reads the DHT, calls
 |---|---|
 | [macula](https://github.com/macula-io/macula) | The reference SDK (Erlang/OTP) |
 | [macula-go](https://github.com/macula-io/macula-go) | Go port, and what this SDK binds |
-| [macula-ts](https://github.com/macula-io/macula-ts) | FFI binding over macula-go, for Node.js; this SDK's `cabi/` follows its pool model |
+| [macula-ts](https://github.com/macula-io/macula-ts) | FFI binding over the same libmacula, for Node.js |
 | [macula-rust](https://github.com/macula-io/macula-rust) | Native reimplementation (quinn, pure Rust) |
 | [macula-station](https://github.com/macula-io/macula-station) | The station: DHT, SWIM, routing, peering |
 | [macula-realm](https://github.com/macula-io/macula-realm) | Managed-realm identity + certificate authority |

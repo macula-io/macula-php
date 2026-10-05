@@ -1,6 +1,6 @@
 # Examples
 
-Runnable scripts against a real macula 12 station. Build the library first
+Runnable scripts against a real macula station. Build the library first
 (`composer install && composer build`), then run an example with PHP. Each
 reads where to connect from the environment, through [`mesh.php`](mesh.php):
 

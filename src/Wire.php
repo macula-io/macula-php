@@ -16,7 +16,8 @@ namespace Macula;
  * Bytes have no JSON shape. Going in, give them as Wire::bytes($raw), the
  * tagged form `['$bytes' => base64]`; a plain string is always text. Coming
  * out, bytes are a "0x"-prefixed lowercase hex string by default, or the
- * tagged form when BytesOutput::Tagged is asked for.
+ * tagged form when BytesOutput::Tagged is asked for. Only the tagged form
+ * tells bytes from text that happens to start with "0x".
  */
 final class Wire
 {
@@ -70,31 +71,25 @@ final class Wire
     }
 
     /**
-     * @internal The library's call error as the class it names:
-     * "provider_error:<code>:<detail>" and "relay_error:<code>", any other
-     * text a MaculaException.
+     * @internal A value from the library as PHP gets it under bytes: the
+     * library gives every byte string tagged, `['$bytes' => base64]`; Hex
+     * turns each into "0x" and its lowercase hex.
      */
-    public static function callError(string $message): MaculaException
+    public static function output(mixed $value, BytesOutput $bytes): mixed
     {
-        if (preg_match('/^provider_error:([^:]*):(.*)$/s', $message, $m) === 1) {
-            return new ProviderError($m[1], $m[2]);
+        if ($bytes === BytesOutput::Tagged || !is_array($value)) {
+            return $value;
         }
-        if (preg_match('/^relay_error:(.*)$/s', $message, $m) === 1) {
-            return new RelayError($m[1]);
+        if (count($value) === 1 && is_string($value['$bytes'] ?? null)) {
+            return '0x' . bin2hex(base64_decode($value['$bytes'], true));
         }
-        return new MaculaException($message);
+        return array_map(static fn (mixed $v) => self::output($v, $bytes), $value);
     }
 
-    /** @internal The library's content errors as the classes they name. */
-    public static function contentError(string $message): MaculaException
+    /** @internal Library JSON as PHP values under bytes. */
+    public static function decodeOutput(string $json, BytesOutput $bytes): mixed
     {
-        if ($message === 'not_shared') {
-            return new NotSharedError();
-        }
-        if (str_starts_with($message, 'unavailable:')) {
-            return new ContentUnavailableError(substr($message, strlen('unavailable:')));
-        }
-        return new MaculaException($message);
+        return self::output(self::decode($json), $bytes);
     }
 
     private static function refuseBooleans(mixed $value, string $path): void

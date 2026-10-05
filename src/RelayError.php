@@ -10,6 +10,6 @@ final class RelayError extends MaculaException
 {
     public function __construct(public readonly string $errorCode)
     {
-        parent::__construct("macula-php: the station could not relay the call: {$errorCode}");
+        parent::__construct("macula-php: the station could not relay the call: {$errorCode}", 'relay_error');
     }
 }

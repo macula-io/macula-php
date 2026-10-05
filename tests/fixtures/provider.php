@@ -12,6 +12,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../../vendor/autoload.php';
 
+use Macula\Confidentiality;
 use Macula\NodeKey;
 use Macula\Pool;
 use Macula\Profile;
@@ -30,7 +31,8 @@ if ($config['admitted']) {
 }
 $seed = new Seed($config['seed']['host'], $config['seed']['port'], $config['seed']['node_id']);
 $realm = $config['realm_id'];
-$pool = Pool::connect($key, [$seed], realmTrust: $config['realm_key'] === null ? [] : [$realm => $config['realm_key']]);
+$pool = Pool::connect($key, [$seed], realmTrust: $config['realm_key'] === null ? [] : [$realm => $config['realm_key']],
+    kemAdvertise: $config['kind'] === 'sealed');
 $org = $config['org'];
 
 [$procedure, $served, $handler] = match ($config['kind']) {
@@ -43,6 +45,11 @@ $org = $config['org'];
             }
             return ['echo' => $r->payload, 'caller' => $r->caller];
         },
+    ],
+    'sealed' => [
+        "{$org}/sealed",
+        $pool->serve($realm, "{$org}/sealed", confidential: Confidentiality::Required),
+        fn (Request $r): mixed => ['sealed' => $r->sealed ? 1 : 0, 'echo' => $r->payload],
     ],
     'ring' => [
         $pool->ownProcedure('ring'),

@@ -6,22 +6,6 @@ on:
   pull_request:
 
 jobs:
-  go-fmt-vet-build:
-    name: cabi (gofmt, go vet, go test, build)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: cabi
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: cabi/go.mod
-      - run: test -z "$(gofmt -l .)"
-      - run: go vet ./...
-      - run: go test ./...
-      - run: go build -buildmode=c-shared -o libmacula.so .
-
   php-test:
     name: php (lint, composer validate, phpunit against in-process stations)
     runs-on: ubuntu-latest
@@ -29,7 +13,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: cabi/go.mod
+          go-version: "1.27"
       - uses: shivammathur/setup-php@v2
         with:
           php-version: "8.3"
@@ -40,8 +24,11 @@ jobs:
             php -l "$f"
           done
       - run: composer install --no-interaction --prefer-dist
-      # libmacula.so and build/teststation, two in-process macula 12
-      # stations the offline suite runs against. tests/live dials the real
-      # fleet and never runs here: `composer test:live`, by hand.
+      # The released libmacula for abi/MACULA_GO_REF, checked against its
+      # SHA256SUMS and attestation, and macula-go's teststation at that tag:
+      # two in-process stations the offline suite runs against. tests/live
+      # dials the real fleet and never runs here: `composer test:live`, by hand.
       - run: composer build
+        env:
+          GH_TOKEN: ${{ github.token }}
       - run: vendor/bin/phpunit

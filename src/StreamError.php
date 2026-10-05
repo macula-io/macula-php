@@ -13,6 +13,6 @@ final class StreamError extends MaculaException
         public readonly string $detail,
         public readonly bool $relay,
     ) {
-        parent::__construct("macula-php: stream error {$errorCode}" . ($detail === '' ? '' : ": {$detail}"));
+        parent::__construct("macula-php: stream error {$errorCode}" . ($detail === '' ? '' : ": {$detail}"), 'stream_error');
     }
 }

@@ -19,7 +19,7 @@ final class NodeKey
     /** A new key whose node_id solves the admission puzzle; takes a second or so. */
     public static function generate(Profile $profile = Profile::PqHybrid): self
     {
-        return new self(Binding::call(fn ($err) => Binding::ffi()->macula_key_generate($profile->value, $err)));
+        return new self(Binding::call(fn ($err) => Binding::ffi()->macula_key_generate($profile->value, 0, $err)));
     }
 
     /** The key in the key file at path. A file its group or others can read,
@@ -32,12 +32,8 @@ final class NodeKey
     /** The key at path, or a new one saved there when the file does not exist. */
     public static function loadOrCreate(string $path, Profile $profile = Profile::PqHybrid): self
     {
-        if (file_exists($path)) {
-            return self::load($path, $profile);
-        }
-        $key = self::generate($profile);
-        $key->save($path);
-        return $key;
+        return new self(Binding::call(fn ($err) => Binding::ffi()->macula_key_load_or_create($path, $profile->value, 0,
+            $err)));
     }
 
     /** Writes the key to path, readable by its owner only. */

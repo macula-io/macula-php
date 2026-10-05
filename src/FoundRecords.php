@@ -13,9 +13,9 @@ final class FoundRecords
     }
 
     /** @internal */
-    public static function fromJson(string $json): self
+    public static function fromJson(string $json, BytesOutput $bytes = BytesOutput::Hex): self
     {
-        $out = Wire::decode($json);
+        $out = Wire::decodeOutput($json, $bytes);
         return new self(array_map(DhtRecord::fromArray(...), $out['records'] ?? []), $out['dropped'] ?? 0);
     }
 }

@@ -6,6 +6,37 @@ to v0.3.4 are described in their annotated git tag messages.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-10-05
+
+### Changed
+
+- macula-php loads macula-go's **released** libmacula, the tag in
+  `abi/MACULA_GO_REF`, instead of its own `cabi/` over macula-go v0.12.0,
+  which is gone. `composer build` downloads the library for this platform,
+  checks it against the release's `SHA256SUMS` and build attestation, and
+  refuses a release whose `macula.h` is not `abi/macula.h`; `Binding` refuses
+  a library of another ABI version. The test suite runs macula-go's own
+  teststation at the same tag. This brings the macula 13 wire: handshake v5
+  bound to the TLS session, and macula 13 advertisements that name a
+  provider's KEM key, which v0.12.0 refused as malformed ("no trusted
+  provider").
+- Errors cross as libmacula's JSON errors: `MaculaException::$kind` is the
+  library's error kind ("timeout", "not_found", "no_provider", "refused", ...),
+  and `ProviderError`, `RelayError`, `NotSharedError` and
+  `ContentUnavailableError` are thrown for their kinds as before.
+- `NodeKey::loadOrCreate` is libmacula's: a key file that exists but cannot be
+  read is an error, never a reason to make a new key.
+
+### Added
+
+- End-to-end sealing: `Pool::call` and `Pool::openStream` take
+  `confidential: Confidentiality::Preferred|Required`, sealed whenever the
+  provider's advertisement names a KEM key; `Required` fails with a
+  `ConfidentialityError` (`reason`, `named`, `found`) rather than go in the
+  clear. `Pool::serve` and `Pool::serveStream` take `confidential:` too (`Off`
+  as well), and `Pool::connect` takes `kemAdvertise:` to name this node's KEM
+  key in its advertisements. A served `Request` has `sealed`.
+
 ## [0.6.0] - 2026-09-26
 
 ### Added

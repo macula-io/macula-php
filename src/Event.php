@@ -19,10 +19,10 @@ final class Event
     }
 
     /** @internal */
-    public static function fromJson(string $json): self
+    public static function fromJson(string $json, BytesOutput $bytes = BytesOutput::Hex): self
     {
         $e = Wire::decode($json);
-        return new self($e['publisher'], $e['realm'], $e['topic'], $e['seq'], $e['published_at'], $e['payload'],
-            $e['delivered_via']);
+        return new self($e['publisher'], $e['realm'], $e['topic'], $e['seq'], $e['published_at'],
+            Wire::output($e['payload'], $bytes), $e['delivered_via']);
     }
 }

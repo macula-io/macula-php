@@ -14,13 +14,15 @@ final class Request
         public readonly string $procedure,
         public readonly mixed $payload,
         public readonly int $deadlineMs,
+        public readonly bool $sealed = false,
     ) {
     }
 
     /** @internal */
-    public static function fromJson(string $json): self
+    public static function fromJson(string $json, BytesOutput $bytes = BytesOutput::Hex): self
     {
         $r = Wire::decode($json);
-        return new self($r['caller'], $r['realm'], $r['procedure'], $r['payload'], $r['deadline_ms']);
+        return new self($r['caller'], $r['realm'], $r['procedure'], Wire::output($r['payload'], $bytes),
+            $r['deadline_ms'], ($r['sealed'] ?? 0) === 1);
     }
 }

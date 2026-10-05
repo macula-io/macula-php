@@ -15,7 +15,7 @@ final class Served
     private bool $ended = false;
 
     /** @internal */
-    public function __construct(private readonly int $handle)
+    public function __construct(private readonly int $handle, private readonly BytesOutput $bytes = BytesOutput::Hex)
     {
     }
 
@@ -27,9 +27,9 @@ final class Served
             return null;
         }
         [$json, $call, $ended] = Inbox::take(fn ($wait, $handle, $closed, $err) =>
-            Binding::ffi()->macula_served_next($this->handle, $wait, $handle, $closed, $err), $timeoutMs);
+            Binding::ffi()->macula_served_next($this->handle, $wait, 0, $handle, $closed, $err), $timeoutMs);
         $this->ended = $ended;
-        return $json === null ? null : new PendingCall($call, Request::fromJson($json));
+        return $json === null ? null : new PendingCall($call, Request::fromJson($json, $this->bytes));
     }
 
     /**

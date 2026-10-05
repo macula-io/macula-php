@@ -14,7 +14,7 @@ final class Subscription
     private bool $ended = false;
 
     /** @internal */
-    public function __construct(private readonly int $handle)
+    public function __construct(private readonly int $handle, private readonly BytesOutput $bytes = BytesOutput::Hex)
     {
     }
 
@@ -26,9 +26,9 @@ final class Subscription
             return null;
         }
         [$json, , $ended] = Inbox::take(fn ($wait, $_, $closed, $err) =>
-            Binding::ffi()->macula_subscription_next($this->handle, $wait, $closed, $err), $timeoutMs);
+            Binding::ffi()->macula_subscription_next($this->handle, $wait, 0, $closed, $err), $timeoutMs);
         $this->ended = $ended;
-        return $json === null ? null : Event::fromJson($json);
+        return $json === null ? null : Event::fromJson($json, $this->bytes);
     }
 
     /** Every event as it arrives, until the subscription ends or none arrives

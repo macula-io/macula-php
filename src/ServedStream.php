@@ -27,7 +27,7 @@ final class ServedStream
             return null;
         }
         [$json, $stream, $ended] = Inbox::take(fn ($wait, $handle, $closed, $err) =>
-            Binding::ffi()->macula_served_next($this->handle, $wait, $handle, $closed, $err), $timeoutMs);
+            Binding::ffi()->macula_served_next($this->handle, $wait, 0, $handle, $closed, $err), $timeoutMs);
         $this->ended = $ended;
         return $json === null ? null : new Stream($stream, $this->bytes);
     }

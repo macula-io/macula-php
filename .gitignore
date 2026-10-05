@@ -2,5 +2,3 @@
 /composer.lock
 /.phpunit.cache/
 /build/
-/cabi/libmacula.so
-/cabi/libmacula.h

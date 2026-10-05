@@ -1,6 +1,6 @@
 {
     "name": "macula-io/macula-php",
-    "description": "PHP client for the macula 12 mesh: FFI over macula-go's pool (calls and streams by direct dial, serving, pubsub, node-served content, the DHT)",
+    "description": "PHP client for the macula mesh: FFI over macula-go's released libmacula (calls and streams by direct dial, serving, pubsub, node-served content, the DHT)",
     "type": "library",
     "keywords": [
         "macula",
@@ -42,8 +42,8 @@
     },
     "scripts": {
         "build": [
-            "cd cabi && go build -buildmode=c-shared -o libmacula.so .",
-            "cd cabi && go build -o ../build/teststation ./cmd/teststation"
+            "scripts/fetch_native.sh",
+            "scripts/build_teststation.sh"
         ],
         "test": "phpunit",
         "test:live": "phpunit --testsuite=live"

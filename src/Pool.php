@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Macula;
 
 /**
- * A node's pool of station links on the macula 12 mesh, as macula-go's pool
+ * A node's pool of station links on the macula mesh, as macula-go's pool
  * keeps it: every seed pinned by its node_id, the realms whose keys the node
  * trusts, and one identity for every link. Calls and streams reach a provider
  * by direct dial: its advertisements from the DHT, trusted only when the
@@ -33,6 +33,9 @@ final class Pool
      *   its authorization verifies against it, and a procedure is served only
      *   in a realm it names
      * @param int $timeoutMs how long to wait for a first link, 30 s when 0
+     * @param bool $kemAdvertise name this node's KEM key in its confidential
+     *   procedures' advertisements, so callers seal to it: only once every
+     *   station runs macula 12.11 or later
      */
     public static function connect(
         NodeKey $key,
@@ -42,6 +45,7 @@ final class Pool
         int $maxDirectLinks = 0,
         int $respawnDelayMs = 0,
         int $timeoutMs = 0,
+        bool $kemAdvertise = false,
     ): self {
         $seedJson = array_map(fn (Seed $s) => [
             'host' => $s->host,
@@ -58,10 +62,11 @@ final class Pool
             'max_direct_links' => $maxDirectLinks,
             'respawn_delay_ms' => $respawnDelayMs,
             'timeout_ms' => $timeoutMs,
+            'kem_advertise' => $kemAdvertise ? 1 : 0,
         ];
         $k = $key->live();
         return new self(Binding::call(fn ($err) => Binding::ffi()->macula_pool_connect($k,
-            json_encode($seedJson, JSON_THROW_ON_ERROR), json_encode($opts, JSON_THROW_ON_ERROR), $err)));
+            json_encode($seedJson, JSON_THROW_ON_ERROR), json_encode($opts, JSON_THROW_ON_ERROR), 0, $err)));
     }
 
     /** The node_id the pool links as, as hex. */
@@ -91,7 +96,10 @@ final class Pool
     /**
      * Calls procedure in realm at a provider (any trusted one unless provider
      * names one) by direct dial, and returns its result. A provider's ERROR is
-     * thrown as a ProviderError, a station's relay error as a RelayError.
+     * thrown as a ProviderError, a station's relay error as a RelayError. It
+     * is sealed whenever the provider's advertisement names a KEM key; under
+     * Confidentiality::Required one that cannot be sealed is a
+     * ConfidentialityError, never a call in the clear.
      */
     public function call(
         string $realm,
@@ -100,14 +108,25 @@ final class Pool
         ?string $provider = null,
         int $timeoutMs = Wire::DEFAULT_CALL_TIMEOUT_MS,
         BytesOutput $bytes = BytesOutput::Hex,
+        Confidentiality $confidential = Confidentiality::Preferred,
     ): mixed {
         $h = $this->live();
         $realm32 = Binding::buffer(Wire::id32($realm, 'realm'));
-        $provider32 = $provider === null ? null : Binding::buffer(Wire::id32($provider, 'provider'));
         $json = Wire::encode($payload);
-        $result = Binding::call(fn ($err) => Binding::ffi()->macula_pool_call($h, $realm32, $procedure, $json, $provider32,
-            $timeoutMs, $bytes->value, $err), Wire::callError(...));
-        return Wire::decode(Binding::takeString($result));
+        $opts = self::callOptions($provider, $confidential);
+        $result = Binding::call(fn ($err) => Binding::ffi()->macula_pool_call_opts($h, $realm32, $procedure, $json, $opts,
+            $timeoutMs, 0, $err));
+        return Wire::decodeOutput(Binding::takeString($result), $bytes);
+    }
+
+    /** A call's or an open's options as the library takes them. */
+    private static function callOptions(?string $provider, Confidentiality $confidential): string
+    {
+        $opts = ['confidential' => $confidential->value];
+        if ($provider !== null) {
+            $opts['provider'] = bin2hex(Wire::id32($provider, 'provider'));
+        }
+        return json_encode($opts, JSON_THROW_ON_ERROR);
     }
 
     /** The procedure's trusted providers, freshest first. @return list<Provider> */
@@ -116,7 +135,7 @@ final class Pool
         $h = $this->live();
         $realm32 = Binding::buffer(Wire::id32($realm, 'realm'));
         $found = Wire::decode(Binding::takeString(Binding::call(fn ($err) => Binding::ffi()->macula_pool_providers($h,
-            $realm32, $procedure, $timeoutMs, $err))));
+            $realm32, $procedure, $timeoutMs, 0, $err))));
         return array_map(fn (array $p) => new Provider($p['node'], $p['station']), $found ?? []);
     }
 
@@ -137,7 +156,7 @@ final class Pool
         $h = $this->live();
         $realm32 = Binding::buffer(Wire::id32($realm, 'realm'));
         return new Subscription(Binding::call(fn ($err) => Binding::ffi()->macula_pool_subscribe($h, $realm32, $topic,
-            $bytes->value, $err)));
+            $err)), $bytes);
     }
 
     /**
@@ -146,14 +165,20 @@ final class Pool
      * an error. An org procedure needs the realm's key pinned and the org's
      * delegation to this node in the DHT; a procedure in this node's own
      * namespace (ownProcedure) needs neither, and another node's namespace is
-     * refused.
+     * refused. Under Confidentiality::Required a call in the clear is refused;
+     * a pool connected with kemAdvertise names its KEM key so callers seal.
      */
-    public function serve(string $realm, string $procedure, BytesOutput $bytes = BytesOutput::Hex): Served
-    {
+    public function serve(
+        string $realm,
+        string $procedure,
+        BytesOutput $bytes = BytesOutput::Hex,
+        Confidentiality $confidential = Confidentiality::Preferred,
+    ): Served {
         $h = $this->live();
         $realm32 = Binding::buffer(Wire::id32($realm, 'realm'));
-        return new Served(Binding::call(fn ($err) => Binding::ffi()->macula_pool_serve($h, $realm32, $procedure,
-            $bytes->value, $err)));
+        $opts = json_encode(['confidential' => $confidential->value], JSON_THROW_ON_ERROR);
+        return new Served(Binding::call(fn ($err) => Binding::ffi()->macula_pool_serve_opts($h, $realm32, $procedure,
+            $opts, $err)), $bytes);
     }
 
     /** Serves procedure in realm as a stream of mode. Its sessions wait until
@@ -163,11 +188,13 @@ final class Pool
         string $procedure,
         StreamMode $mode,
         BytesOutput $bytes = BytesOutput::Hex,
+        Confidentiality $confidential = Confidentiality::Preferred,
     ): ServedStream {
         $h = $this->live();
         $realm32 = Binding::buffer(Wire::id32($realm, 'realm'));
-        return new ServedStream(Binding::call(fn ($err) => Binding::ffi()->macula_pool_serve_stream($h, $realm32,
-            $procedure, $mode->value, $bytes->value, $err)), $bytes);
+        $opts = json_encode(['confidential' => $confidential->value], JSON_THROW_ON_ERROR);
+        return new ServedStream(Binding::call(fn ($err) => Binding::ffi()->macula_pool_serve_stream_opts($h, $realm32,
+            $procedure, $mode->value, $opts, $err)), $bytes);
     }
 
     /** Opens a stream of mode on procedure in realm at a provider, by direct
@@ -181,13 +208,14 @@ final class Pool
         int $deadlineMs = 0,
         int $timeoutMs = Wire::DEFAULT_CALL_TIMEOUT_MS,
         BytesOutput $bytes = BytesOutput::Hex,
+        Confidentiality $confidential = Confidentiality::Preferred,
     ): Stream {
         $h = $this->live();
         $realm32 = Binding::buffer(Wire::id32($realm, 'realm'));
-        $provider32 = $provider === null ? null : Binding::buffer(Wire::id32($provider, 'provider'));
         $json = Wire::encode($payload);
-        return new Stream(Binding::call(fn ($err) => Binding::ffi()->macula_pool_open_stream($h, $realm32, $procedure,
-            $mode->value, $json, $provider32, $deadlineMs, $timeoutMs, $err), Wire::callError(...)), $bytes);
+        $opts = self::callOptions($provider, $confidential);
+        return new Stream(Binding::call(fn ($err) => Binding::ffi()->macula_pool_open_stream_opts($h, $realm32,
+            $procedure, $mode->value, $json, $opts, $deadlineMs, $timeoutMs, 0, $err)), $bytes);
     }
 
     /** The verified record under key, or null when there is none. */
@@ -199,15 +227,14 @@ final class Pool
         $h = $this->live();
         $key32 = Binding::buffer(Wire::id32($key, 'key'));
         try {
-            $found = Binding::call(fn ($err) => Binding::ffi()->macula_pool_find_record($h, $key32, $timeoutMs,
-                $bytes->value, $err));
+            $found = Binding::call(fn ($err) => Binding::ffi()->macula_pool_find_record($h, $key32, $timeoutMs, 0, $err));
         } catch (MaculaException $e) {
-            if ($e->getMessage() === 'not_found') {
+            if ($e->kind === 'not_found') {
                 return null;
             }
             throw $e;
         }
-        return DhtRecord::fromArray(Wire::decode(Binding::takeString($found)));
+        return DhtRecord::fromArray(Wire::decodeOutput(Binding::takeString($found), $bytes));
     }
 
     /** Every verified record under key, and how many did not verify. */
@@ -219,7 +246,7 @@ final class Pool
         $h = $this->live();
         $key32 = Binding::buffer(Wire::id32($key, 'key'));
         return FoundRecords::fromJson(Binding::takeString(Binding::call(fn ($err) =>
-            Binding::ffi()->macula_pool_find_records($h, $key32, $timeoutMs, $bytes->value, $err))));
+            Binding::ffi()->macula_pool_find_records($h, $key32, $timeoutMs, 0, $err))), $bytes);
     }
 
     /** Every verified record of type the station holds, and how many did not
@@ -232,7 +259,7 @@ final class Pool
         $h = $this->live();
         $t = $type instanceof RecordType ? $type->value : $type;
         return FoundRecords::fromJson(Binding::takeString(Binding::call(fn ($err) =>
-            Binding::ffi()->macula_pool_find_records_by_type($h, $t, $timeoutMs, $bytes->value, $err))));
+            Binding::ffi()->macula_pool_find_records_by_type($h, $t, $timeoutMs, 0, $err))), $bytes);
     }
 
     /** Puts a signed record's wire bytes in the DHT. */
@@ -240,7 +267,7 @@ final class Pool
     {
         $h = $this->live();
         $buf = Binding::buffer($wire);
-        Binding::call(fn ($err) => Binding::ffi()->macula_pool_put_record($h, $buf, strlen($wire), $timeoutMs, $err));
+        Binding::call(fn ($err) => Binding::ffi()->macula_pool_put_record($h, $buf, strlen($wire), $timeoutMs, 0, $err));
     }
 
     /**
@@ -260,10 +287,10 @@ final class Pool
         $h = $this->live();
         $realm32 = Binding::buffer(Wire::id32($realm, 'realm'));
         $buf = Binding::buffer($data);
-        $n = Binding::size();
-        $mcid = Binding::call(fn ($err) => Binding::ffi()->macula_pool_share_content($h, $realm32, $buf, strlen($data),
-            $name, $timeoutMs, \FFI::addr($n), $err), Wire::contentError(...));
-        return bin2hex(Binding::takeBytes($mcid, $n->cdata));
+        $mcid = Binding::ffi()->new('uint8_t[50]');
+        Binding::call(fn ($err) => Binding::ffi()->macula_pool_share_content($h, $realm32, $buf, strlen($data), $name,
+            $timeoutMs, 0, $mcid, $err));
+        return bin2hex(\FFI::string($mcid, 50));
     }
 
     /** Stops sharing mcid in realm and withdraws its announcement. */
@@ -273,8 +300,8 @@ final class Pool
         $realm32 = Binding::buffer(Wire::id32($realm, 'realm'));
         $id = Wire::mcid50($mcid);
         $idBuf = Binding::buffer($id);
-        Binding::call(fn ($err) => Binding::ffi()->macula_pool_unshare_content($h, $realm32, $idBuf, strlen($id),
-            $timeoutMs, $err), Wire::contentError(...));
+        Binding::call(fn ($err) => Binding::ffi()->macula_pool_unshare_content($h, $realm32, $idBuf, $timeoutMs, 0,
+            $err));
     }
 
     /**
@@ -298,8 +325,10 @@ final class Pool
         $id = Wire::mcid50($mcid);
         $idBuf = Binding::buffer($id);
         $n = Binding::size();
-        $data = Binding::call(fn ($err) => Binding::ffi()->macula_pool_get_content($h, $realm32, $idBuf, strlen($id),
-            $maxBytes, $maxChunks, $parallel, $chunkTimeoutMs, $timeoutMs, \FFI::addr($n), $err), Wire::contentError(...));
+        $opts = json_encode(['max_bytes' => $maxBytes, 'max_chunks' => $maxChunks, 'parallel' => $parallel,
+            'chunk_timeout_ms' => $chunkTimeoutMs], JSON_THROW_ON_ERROR);
+        $data = Binding::call(fn ($err) => Binding::ffi()->macula_pool_get_content($h, $realm32, $idBuf, $opts,
+            $timeoutMs, 0, \FFI::addr($n), $err));
         return Binding::takeBytes($data, $n->cdata);
     }
 

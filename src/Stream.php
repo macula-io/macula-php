@@ -26,7 +26,7 @@ final class Stream implements \IteratorAggregate
     {
         $h = $this->live();
         return Request::fromJson(Binding::takeString(Binding::call(fn ($err) =>
-            Binding::ffi()->macula_stream_request($h, $this->bytes->value, $err))));
+            Binding::ffi()->macula_stream_request($h, $err))), $this->bytes);
     }
 
     /** Sends a raw chunk. */
@@ -82,8 +82,8 @@ final class Stream implements \IteratorAggregate
     public function recv(int $timeoutMs = 0): ?StreamEvent
     {
         $h = $this->live();
-        $e = Wire::decode(Binding::takeString(Binding::call(fn ($err) =>
-            Binding::ffi()->macula_stream_recv($h, $timeoutMs, $this->bytes->value, $err))));
+        $e = Wire::decodeOutput(Binding::takeString(Binding::call(fn ($err) =>
+            Binding::ffi()->macula_stream_recv($h, $timeoutMs, 0, $err))), $this->bytes);
         return match ($e['kind']) {
             'eof' => null,
             'error' => throw new StreamError($e['code'], $e['message'] ?? '', ($e['relay'] ?? 0) === 1),

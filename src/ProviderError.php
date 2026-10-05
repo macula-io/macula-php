@@ -14,6 +14,6 @@ final class ProviderError extends MaculaException
 {
     public function __construct(public readonly string $errorCode, public readonly string $detail)
     {
-        parent::__construct("macula-php: the provider answered {$errorCode}" . ($detail === '' ? '' : ": {$detail}"));
+        parent::__construct("macula-php: the provider answered {$errorCode}" . ($detail === '' ? '' : ": {$detail}"), 'provider_error');
     }
 }

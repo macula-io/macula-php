@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Macula\Tests;
 
 /**
- * Runs cabi/cmd/teststation (built to build/teststation by `composer
- * build`) for a test class: two in-process macula 12 stations sharing a DHT
+ * Runs macula-go's teststation at the tag in abi/MACULA_GO_REF (built to
+ * build/teststation by `composer build`) for a test class: two in-process macula 12 stations sharing a DHT
  * and a test realm, driven over the helper's stdin.
  */
 final class TestStations

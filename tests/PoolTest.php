@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Macula\Tests;
 
 use Macula\BytesOutput;
+use Macula\Confidentiality;
+use Macula\ConfidentialityError;
 use Macula\ContentUnavailableError;
 use Macula\NodeKey;
 use Macula\NotSharedError;
@@ -97,6 +99,48 @@ final class PoolTest extends TestCase
             self::assertContains($provider->nodeId, $nodes);
         } finally {
             $caller->close();
+            $provider->stop();
+        }
+    }
+
+    public function testARequiredCallIsSealedToTheKeyTheProviderAdvertises(): void
+    {
+        $provider = ProviderProcess::start(self::$env, 'sealed', 0, admitted: true);
+        $pool = $this->node(1);
+        try {
+            $result = null;
+            $this->eventually('the sealed provider answers', function () use ($pool, $provider, &$result): bool {
+                try {
+                    $result = $pool->call(self::$env->realmId, $provider->procedure, 'secret',
+                        confidential: Confidentiality::Required);
+                    return true;
+                } catch (\Macula\MaculaException $e) {
+                    return false;
+                }
+            });
+            self::assertSame(['sealed' => 1, 'echo' => 'secret'], $result);
+        } finally {
+            $pool->close();
+            $provider->stop();
+        }
+    }
+
+    public function testARequiredCallToAProviderThatNamesNoKeyIsAConfidentialityError(): void
+    {
+        $provider = ProviderProcess::start(self::$env, 'echo', 0, admitted: true);
+        $pool = $this->node(1);
+        try {
+            $this->eventually('the provider is advertised', fn (): bool =>
+                $pool->providers(self::$env->realmId, $provider->procedure) !== []);
+            try {
+                $pool->call(self::$env->realmId, $provider->procedure, 'secret', confidential: Confidentiality::Required);
+                self::fail('a required call went in the clear');
+            } catch (ConfidentialityError $e) {
+                self::assertSame('confidentiality', $e->kind);
+                self::assertNotSame('', $e->reason);
+            }
+        } finally {
+            $pool->close();
             $provider->stop();
         }
     }

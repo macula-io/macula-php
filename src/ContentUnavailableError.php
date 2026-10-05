@@ -10,6 +10,6 @@ final class ContentUnavailableError extends MaculaException
 {
     public function __construct(public readonly string $detail)
     {
-        parent::__construct("macula-php: no sharer gave the content: {$detail}");
+        parent::__construct("macula-php: no sharer gave the content: {$detail}", 'unavailable');
     }
 }
