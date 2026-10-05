@@ -6,6 +6,24 @@ to v0.3.4 are described in their annotated git tag messages.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-10-05
+
+### Added
+
+- UCANs (macula's D7): `NodeKey::ucan($audience, $caps, $expS, nbf:, nnc:,
+  fct:, prf:)` mints a token for the node that will present it, and
+  `Ucan::proofId($token)` names a parent in a delegated token's `prf`.
+  `Pool::call` and `Pool::openStream` take `ucan:` and `proofs:` (the chain's
+  parents); proofs without a token are refused before anything is sent.
+- Gated serving: `Pool::serve` and `Pool::serveStream` take `policy:`, a
+  `ServePolicy::ucanRequired($issuerNodeId)` or
+  `ServePolicy::realmMemberRequired($keyId, $can)`. libmacula checks each call
+  and open before it reaches PHP; a refused call is a `ProviderError` of code
+  `unauthorized`.
+- The seal report: `Pool::callReport(...)` returns a `ReportedCall` (`result`
+  and `report`), and `Stream::report()` a caller stream's `SealReport`
+  (`sealed`, `provider`, `sealKeyId`) once it settled.
+
 ## [0.7.0] - 2026-10-05
 
 ### Changed

@@ -5,7 +5,8 @@ declare(strict_types=1);
 // A provider in a process of its own, for the tests: PHP runs one thing at a
 // time, so a call from the test blocks until its answer, and the answer has to
 // come from another process. argv[1] is JSON {seed: {host, port, node_id},
-// realm_id, realm_key (null for none), org, kind, admitted}. It prints its
+// realm_id, realm_key (null for none), org, kind, admitted, issuer (the
+// UCAN root a gated kind requires)}. It prints its
 // node_id; when admitted it waits for a line on stdin (the test admits it
 // meanwhile); then it connects, serves the procedure `kind` names, prints that
 // procedure, and answers until stdin closes.
@@ -18,6 +19,7 @@ use Macula\Pool;
 use Macula\Profile;
 use Macula\Request;
 use Macula\Seed;
+use Macula\ServePolicy;
 use Macula\Stream;
 use Macula\StreamData;
 use Macula\StreamEnd;
@@ -45,6 +47,11 @@ $org = $config['org'];
             }
             return ['echo' => $r->payload, 'caller' => $r->caller];
         },
+    ],
+    'gated' => [
+        "{$org}/gated",
+        $pool->serve($realm, "{$org}/gated", policy: ServePolicy::ucanRequired($config['issuer'])),
+        fn (Request $r): mixed => ['served' => $r->caller],
     ],
     'sealed' => [
         "{$org}/sealed",

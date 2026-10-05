@@ -25,7 +25,14 @@ final class ProviderProcess
         $this->procedure = $this->line();
     }
 
-    public static function start(TestStations $env, string $kind, int $station, bool $admitted, bool $trusted = true): self
+    public static function start(
+        TestStations $env,
+        string $kind,
+        int $station,
+        bool $admitted,
+        bool $trusted = true,
+        ?string $issuer = null,
+    ): self
     {
         $s = $env->stations[$station];
         $config = json_encode([
@@ -35,6 +42,7 @@ final class ProviderProcess
             'org' => $env->org,
             'kind' => $kind,
             'admitted' => $admitted,
+            'issuer' => $issuer,
         ], JSON_THROW_ON_ERROR);
         $process = proc_open([PHP_BINARY, __DIR__ . '/fixtures/provider.php', $config],
             [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => STDERR], $pipes);

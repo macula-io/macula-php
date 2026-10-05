@@ -39,6 +39,10 @@ final class Binding
             const uint8_t *public_key, size_t public_key_len, const char *profile, char **err_out);
         void macula_key_free(uintptr_t key);
 
+        char *macula_ucan_create(uintptr_t key, const uint8_t *audience_node_id, const char *caps_json, int64_t exp_s,
+            const char *options_json, char **err_out);
+        char *macula_ucan_proof_id(const char *token, char **err_out);
+
         uintptr_t macula_pool_connect(uintptr_t key, const char *seeds_json, const char *options_json, uintptr_t cancel,
             char **err_out);
         void macula_pool_close(uintptr_t pool);
@@ -71,6 +75,7 @@ final class Binding
             const char *payload_json, const char *options_json, int64_t deadline_ms, int64_t timeout_ms,
             uintptr_t cancel, char **err_out);
         char *macula_stream_request(uintptr_t stream, char **err_out);
+        char *macula_stream_report(uintptr_t stream, char **err_out);
         void macula_stream_send_bytes(uintptr_t stream, const uint8_t *data, size_t data_len, char **err_out);
         void macula_stream_send_json(uintptr_t stream, const char *value_json, char **err_out);
         void macula_stream_close_send(uintptr_t stream, char **err_out);

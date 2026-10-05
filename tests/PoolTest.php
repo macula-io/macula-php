@@ -13,6 +13,7 @@ use Macula\NotSharedError;
 use Macula\Pool;
 use Macula\Profile;
 use Macula\ProviderError;
+use Macula\Ucan;
 use Macula\RecordType;
 use Macula\StreamData;
 use Macula\StreamEnd;
@@ -145,6 +146,78 @@ final class PoolTest extends TestCase
         }
     }
 
+    public function testAGatedProcedureServesOnlyACallerItsRootGranted(): void
+    {
+        $root = NodeKey::generate(Profile::PqPure);
+        $alice = NodeKey::generate(Profile::PqPure);
+        $provider = ProviderProcess::start(self::$env, 'gated', 0, admitted: true, issuer: $root->nodeIdHex());
+        $pool = $this->node(1);
+        $realm = self::$env->realmId;
+        $caps = [['with' => 'mri:org:' . self::$env->realmName . '/' . self::$env->org, 'can' => 'invoke']];
+        $exp = time() + 300;
+        try {
+            $this->eventually('the gated provider is advertised', fn (): bool =>
+                $pool->providers($realm, $provider->procedure) !== []);
+            $refused = [
+                'no token' => [null, []],
+                'a token for another node' => [$root->ucan($alice->nodeIdHex(), $caps, $exp), []],
+                'a token from another root' => [$alice->ucan($pool->nodeId(), $caps, $exp), []],
+            ];
+            foreach ($refused as $name => [$token, $proofs]) {
+                try {
+                    $pool->call($realm, $provider->procedure, ucan: $token, proofs: $proofs);
+                    self::fail("{$name}: served");
+                } catch (ProviderError $e) {
+                    self::assertSame('unauthorized', $e->errorCode, $name);
+                }
+            }
+            $granted = $root->ucan($pool->nodeId(), $caps, $exp);
+            self::assertSame(['served' => $pool->nodeId()],
+                $pool->call($realm, $provider->procedure, ucan: $granted));
+            $toAlice = $root->ucan($alice->nodeIdHex(), $caps, $exp);
+            $delegated = $alice->ucan($pool->nodeId(), $caps, $exp, prf: [Ucan::proofId($toAlice)]);
+            self::assertSame(['served' => $pool->nodeId()],
+                $pool->call($realm, $provider->procedure, ucan: $delegated, proofs: [$toAlice]));
+        } finally {
+            $pool->close();
+            $provider->stop();
+        }
+    }
+
+    public function testACallReportSaysWhetherTheExchangeWasSealedAndToWhichKey(): void
+    {
+        $sealed = ProviderProcess::start(self::$env, 'sealed', 0, admitted: true);
+        $clear = ProviderProcess::start(self::$env, 'echo', 0, admitted: true);
+        $pool = $this->node(1);
+        $realm = self::$env->realmId;
+        try {
+            $reported = null;
+            $this->eventually('the sealed provider answers', function () use ($pool, $realm, $sealed, &$reported): bool {
+                try {
+                    $reported = $pool->callReport($realm, $sealed->procedure, 'secret',
+                        confidential: Confidentiality::Required);
+                    return true;
+                } catch (\Macula\MaculaException) {
+                    return false;
+                }
+            });
+            self::assertEquals(['echo' => 'secret', 'sealed' => 1], $reported->result);
+            self::assertTrue($reported->report->sealed);
+            self::assertSame($sealed->nodeId, $reported->report->provider);
+            self::assertMatchesRegularExpression('/^[0-9a-f]{16}$/', (string) $reported->report->sealKeyId);
+
+            $plain = $pool->callReport($realm, $clear->procedure, 'hello');
+            self::assertEquals(['echo' => 'hello', 'caller' => $pool->nodeId()], $plain->result);
+            self::assertFalse($plain->report->sealed);
+            self::assertSame($clear->nodeId, $plain->report->provider);
+            self::assertNull($plain->report->sealKeyId);
+        } finally {
+            $pool->close();
+            $sealed->stop();
+            $clear->stop();
+        }
+    }
+
     public function testACallIsRefusedForAnUnpinnedRealmAndFindsNoProviderForWhatNobodyServes(): void
     {
         $caller = $this->node(0);
@@ -230,6 +303,10 @@ final class PoolTest extends TestCase
                 }
             }
             self::assertSame(['one', 'two', 'three'], $got);
+            $report = $stream->report();
+            self::assertFalse($report->sealed, 'a clear stream settles clear on its first data');
+            self::assertSame($provider->nodeId, $report->provider);
+            self::assertNull($report->sealKeyId);
             $stream->free();
             $this->eventually('every stream released', fn () => self::$env->relayed() === 0);
         } finally {

@@ -99,7 +99,11 @@ final class Pool
      * thrown as a ProviderError, a station's relay error as a RelayError. It
      * is sealed whenever the provider's advertisement names a KEM key; under
      * Confidentiality::Required one that cannot be sealed is a
-     * ConfidentialityError, never a call in the clear.
+     * ConfidentialityError, never a call in the clear. A gated procedure
+     * takes a UCAN for this node and its chain's proofs; it refuses one with
+     * a ProviderError of code "unauthorized".
+     *
+     * @param list<string> $proofs
      */
     public function call(
         string $realm,
@@ -109,22 +113,74 @@ final class Pool
         int $timeoutMs = Wire::DEFAULT_CALL_TIMEOUT_MS,
         BytesOutput $bytes = BytesOutput::Hex,
         Confidentiality $confidential = Confidentiality::Preferred,
+        ?string $ucan = null,
+        array $proofs = [],
     ): mixed {
         $h = $this->live();
         $realm32 = Binding::buffer(Wire::id32($realm, 'realm'));
         $json = Wire::encode($payload);
-        $opts = self::callOptions($provider, $confidential);
+        $opts = self::callOptions($provider, $confidential, $ucan, $proofs);
         $result = Binding::call(fn ($err) => Binding::ffi()->macula_pool_call_opts($h, $realm32, $procedure, $json, $opts,
             $timeoutMs, 0, $err));
         return Wire::decodeOutput(Binding::takeString($result), $bytes);
     }
 
-    /** A call's or an open's options as the library takes them. */
-    private static function callOptions(?string $provider, Confidentiality $confidential): string
-    {
+    /**
+     * call, with its seal report: whether the exchange behind the result was
+     * sealed, to which provider and key. An error is thrown as call throws it,
+     * with no report.
+     *
+     * @param list<string> $proofs
+     */
+    public function callReport(
+        string $realm,
+        string $procedure,
+        mixed $payload = new \stdClass(),
+        ?string $provider = null,
+        int $timeoutMs = Wire::DEFAULT_CALL_TIMEOUT_MS,
+        BytesOutput $bytes = BytesOutput::Hex,
+        Confidentiality $confidential = Confidentiality::Preferred,
+        ?string $ucan = null,
+        array $proofs = [],
+    ): ReportedCall {
+        $h = $this->live();
+        $realm32 = Binding::buffer(Wire::id32($realm, 'realm'));
+        $json = Wire::encode($payload);
+        $opts = self::callOptions($provider, $confidential, $ucan, $proofs, report: true);
+        $reply = Wire::decode(Binding::takeString(Binding::call(fn ($err) => Binding::ffi()->macula_pool_call_opts($h,
+            $realm32, $procedure, $json, $opts, $timeoutMs, 0, $err))));
+        return new ReportedCall(Wire::output($reply['result'], $bytes), SealReport::fromArray($reply));
+    }
+
+    /**
+     * A call's or an open's options as the library takes them: the provider,
+     * how it is kept, a UCAN and its chain's proofs (the parents' text), and
+     * whether a call reports.
+     *
+     * @param list<string> $proofs
+     */
+    private static function callOptions(
+        ?string $provider,
+        Confidentiality $confidential,
+        ?string $ucan,
+        array $proofs,
+        bool $report = false,
+    ): string {
         $opts = ['confidential' => $confidential->value];
         if ($provider !== null) {
             $opts['provider'] = bin2hex(Wire::id32($provider, 'provider'));
+        }
+        if ($ucan !== null) {
+            $opts['ucan'] = $ucan;
+        }
+        if ($proofs !== []) {
+            if ($ucan === null) {
+                throw new \InvalidArgumentException('macula-php: proofs go with the UCAN they prove');
+            }
+            $opts['proofs'] = array_values($proofs);
+        }
+        if ($report) {
+            $opts['report'] = 1;
         }
         return json_encode($opts, JSON_THROW_ON_ERROR);
     }
@@ -167,16 +223,19 @@ final class Pool
      * namespace (ownProcedure) needs neither, and another node's namespace is
      * refused. Under Confidentiality::Required a call in the clear is refused;
      * a pool connected with kemAdvertise names its KEM key so callers seal.
+     * Under a ServePolicy only callers presenting a UCAN it accepts reach the
+     * handler; libmacula refuses the rest before they do.
      */
     public function serve(
         string $realm,
         string $procedure,
         BytesOutput $bytes = BytesOutput::Hex,
         Confidentiality $confidential = Confidentiality::Preferred,
+        ?ServePolicy $policy = null,
     ): Served {
         $h = $this->live();
         $realm32 = Binding::buffer(Wire::id32($realm, 'realm'));
-        $opts = json_encode(['confidential' => $confidential->value], JSON_THROW_ON_ERROR);
+        $opts = self::serveOptions($confidential, $policy);
         return new Served(Binding::call(fn ($err) => Binding::ffi()->macula_pool_serve_opts($h, $realm32, $procedure,
             $opts, $err)), $bytes);
     }
@@ -189,10 +248,11 @@ final class Pool
         StreamMode $mode,
         BytesOutput $bytes = BytesOutput::Hex,
         Confidentiality $confidential = Confidentiality::Preferred,
+        ?ServePolicy $policy = null,
     ): ServedStream {
         $h = $this->live();
         $realm32 = Binding::buffer(Wire::id32($realm, 'realm'));
-        $opts = json_encode(['confidential' => $confidential->value], JSON_THROW_ON_ERROR);
+        $opts = self::serveOptions($confidential, $policy);
         return new ServedStream(Binding::call(fn ($err) => Binding::ffi()->macula_pool_serve_stream_opts($h, $realm32,
             $procedure, $mode->value, $opts, $err)), $bytes);
     }
@@ -209,13 +269,25 @@ final class Pool
         int $timeoutMs = Wire::DEFAULT_CALL_TIMEOUT_MS,
         BytesOutput $bytes = BytesOutput::Hex,
         Confidentiality $confidential = Confidentiality::Preferred,
+        ?string $ucan = null,
+        array $proofs = [],
     ): Stream {
         $h = $this->live();
         $realm32 = Binding::buffer(Wire::id32($realm, 'realm'));
         $json = Wire::encode($payload);
-        $opts = self::callOptions($provider, $confidential);
+        $opts = self::callOptions($provider, $confidential, $ucan, $proofs);
         return new Stream(Binding::call(fn ($err) => Binding::ffi()->macula_pool_open_stream_opts($h, $realm32,
             $procedure, $mode->value, $json, $opts, $deadlineMs, $timeoutMs, 0, $err)), $bytes);
+    }
+
+    /** A served procedure's options as the library takes them. */
+    private static function serveOptions(Confidentiality $confidential, ?ServePolicy $policy): string
+    {
+        $opts = ['confidential' => $confidential->value];
+        if ($policy !== null) {
+            $opts['policy'] = $policy->toArray();
+        }
+        return json_encode($opts, JSON_THROW_ON_ERROR);
     }
 
     /** The verified record under key, or null when there is none. */

@@ -27,9 +27,9 @@
 > and ML-KEM hybrid key exchange. Calls and streams by direct dial, serving
 > (under an org or in a node's own namespace), publish/subscribe, the DHT and
 > node-served content are tested against in-process stations on every
-> `composer test`. UCAN-gated calls are not in the PHP API yet; see [Not yet
-> implemented](#not-yet-implemented). Releases before 0.7.0 bind macula-go
-> v0.12.0 and cannot call a provider that advertises a KEM key.
+> `composer test`, as are UCAN-gated calls and serving and the seal report.
+> Releases before 0.7.0 bind macula-go v0.12.0 and cannot call a provider
+> that advertises a KEM key.
 
 ## What is this?
 
@@ -128,6 +128,8 @@ compatibility layer.
 | Node keys (`NodeKey`) | ✅ | ✅ | `pq_hybrid` (the fleet's) or `pq_pure`; key files readable by the owner only; `sign` and `verify`, pq_hybrid checked against the LAMPS draft's own vector and cross-verified with macula 12.7.0 |
 | Pool of station links (`Pool::connect`) | ✅ | ✅ | Seeds pinned by node_id; realm keys pinned; links redialed with subscriptions and served procedures replayed |
 | Calls by direct dial (`call`, `providers`) | ✅ | ✅ | Errors arrive as `ProviderError` / `RelayError`; every other failure is a `MaculaException` whose `kind` is the library's error kind |
+| UCANs (`NodeKey::ucan`, `Ucan::proofId`, `ucan:`/`proofs:`, `ServePolicy`) | ✅ | ✅ | A token minted for the node that presents it, delegated by `prf`; a procedure served under `ServePolicy::ucanRequired` or `realmMemberRequired` reaches its handler only with a chain the policy accepts, refused otherwise as `ProviderError` `unauthorized` |
+| The seal report (`callReport`, `Stream::report`) | ✅ | — | Whether the exchange behind a result was sealed, to which provider and key |
 | End-to-end sealing (`confidential:`, `kemAdvertise:`) | ✅ | ✅ | A call or stream is sealed whenever the provider's advertisement names a KEM key; `Confidentiality::Required` fails with `ConfidentialityError` rather than go in the clear; a served `Request` says whether it came `sealed` |
 | A node's own namespace (`ownProcedure`) | ✅ | ✅ | `~<node_id>/<name>`: served and called with no org and no realm key; the node's signature authorizes it |
 | Streams (`openStream`, `serveStream`) | ✅ | ✅ | Server, client and bidi; a QUIC stream per session, released on every path |
@@ -186,10 +188,7 @@ a bounded inbox in the library until a `*_next` function takes it.
 
 ## Not yet implemented
 
-- **UCAN-gated calls and serving.** libmacula has them
-  (`macula_pool_call_opts` with a "ucan", `macula_pool_serve_opts` with a
-  policy); the PHP API does not expose them yet.
-- **The seal report** (`report`, `macula_stream_report`): not in the PHP API.
+Nothing that libmacula offers a PHP node is missing today.
 
 ## Testing
 
@@ -204,7 +203,9 @@ composer test:live    # one live station, see below
 the same tag, which runs two in-process stations sharing a DHT, with a test realm that admits the test's provider nodes. It
 exercises keys, calls by direct dial and their errors, providers, server and
 client streams and a provider that aborts one (and that no stream is left
-unreleased), a sealed call and a required call refused in the clear, pubsub, node-served content and the DHT, through the real library.
+unreleased), a sealed call and a required call refused in the clear, a gated
+procedure refusing a missing, misaddressed or foreign token and serving a
+granted and a delegated one, the seal report of a call and a stream, pubsub, node-served content and the DHT, through the real library.
 A provider a test calls runs in a PHP process of its own
 (`tests/fixtures/provider.php`). No network is needed. The suite needs PHP ≥
 8.3 (PHPUnit 12's floor); the library itself runs on PHP ≥ 8.1.

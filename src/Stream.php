@@ -30,6 +30,17 @@ final class Stream implements \IteratorAggregate
     }
 
     /** Sends a raw chunk. */
+    /** A caller stream's seal report, once it settled on the provider's first
+     * data or reply (on a clear stream, its first data, reply or end). Before
+     * that, a MaculaException of kind "not_settled"; on a served stream,
+     * "not_a_caller". */
+    public function report(): SealReport
+    {
+        $h = $this->live();
+        return SealReport::fromArray(Wire::decode(Binding::takeString(Binding::call(fn ($err) =>
+            Binding::ffi()->macula_stream_report($h, $err)))));
+    }
+
     public function send(string $chunk): void
     {
         $h = $this->live();

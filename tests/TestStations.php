@@ -14,6 +14,7 @@ final class TestStations
     /** @var list<array{host: string, port: int, node_id: string}> */
     public readonly array $stations;
     public readonly string $realmId;
+    public readonly string $realmName;
     public readonly string $realmKey;
     public readonly string $org;
 
@@ -23,6 +24,7 @@ final class TestStations
         $info = json_decode($this->line(), true, flags: JSON_THROW_ON_ERROR);
         $this->stations = $info['stations'];
         $this->realmId = $info['realm_id'];
+        $this->realmName = $info['realm_name'];
         $this->realmKey = $info['realm_key'];
         $this->org = $info['org'];
     }

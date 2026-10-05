@@ -99,6 +99,36 @@ final class NodeKey
     }
 
     /** Frees the native key. The NodeKey is unusable after. */
+    /**
+     * This identity key's UCAN for the node audience names (64 hex characters
+     * or 32 bytes), granting caps, a list of ['with' => <an MRI>, 'can' =>
+     * ...] (`mri:realm:<realm name>`, `mri:org:<realm>/<org>`,
+     * `mri:proc:<realm>/<org>/<name>`), until expS (Unix seconds). A delegated
+     * token names its parent in prf by Ucan::proofId; the audience is always
+     * the node that will present it.
+     *
+     * @param list<array{with: string, can: string}> $caps
+     * @param list<string> $prf
+     */
+    public function ucan(
+        string $audience,
+        array $caps,
+        int $expS,
+        ?int $nbf = null,
+        ?string $nnc = null,
+        mixed $fct = null,
+        array $prf = [],
+    ): string {
+        $h = $this->live();
+        $audience32 = Binding::buffer(Wire::id32($audience, 'the audience'));
+        $capsJson = Wire::encode($caps);
+        $options = array_filter(['nbf' => $nbf, 'nnc' => $nnc, 'fct' => $fct, 'prf' => $prf === [] ? null : $prf],
+            static fn (mixed $v) => $v !== null);
+        $optionsJson = $options === [] ? null : Wire::encode($options);
+        return Binding::takeString(Binding::call(fn ($err) => Binding::ffi()->macula_ucan_create($h, $audience32,
+            $capsJson, $expS, $optionsJson, $err)));
+    }
+
     public function free(): void
     {
         if ($this->handle !== null) {
