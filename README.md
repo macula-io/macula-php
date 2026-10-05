@@ -24,9 +24,9 @@
 > the TLS session, end-to-end sealed calls and streams to a provider that
 > advertises a KEM key (`Confidentiality`), post-quantum identities (ML-DSA-87,
 > as the ML-DSA-87 + RSA-PSS-4096 composite in pq_hybrid, the fleet's profile)
-> and ML-KEM hybrid key exchange. Calls and streams by direct dial, serving
-> (under an org or in a node's own namespace), publish/subscribe, the DHT and
-> node-served content are tested against in-process stations on every
+> and hybrid ML-KEM key exchange on SecP384r1MLKEM1024. Calls and streams by
+> direct dial, serving (under an org or in a node's own namespace),
+> publish/subscribe, the DHT and node-served content are tested against in-process stations on every
 > `composer test`, as are UCAN-gated calls and serving and the seal report.
 > Releases before 0.7.0 bind macula-go v0.12.0 and cannot call a provider
 > that advertises a KEM key.

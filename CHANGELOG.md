@@ -6,6 +6,17 @@ to v0.3.4 are described in their annotated git tag messages.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-10-06
+
+### Fixed
+
+- Connections now negotiate SecP384r1MLKEM1024 with every station, on
+  macula-go v0.23.0's libmacula (was v0.22.0). They used to land on
+  SecP256r1MLKEM768: Go ignores the order of its curve preferences and offered
+  SecP256r1MLKEM768 first, and a station takes the client's first group. A
+  station that accepts only SecP256r1MLKEM768 now fails in the TLS handshake
+  (macula-go#20). Closes #3.
+
 ## [0.8.0] - 2026-10-05
 
 ### Added
