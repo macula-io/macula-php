@@ -118,7 +118,7 @@ final class PoolTest extends TestCase
                     return false;
                 }
             });
-            self::assertSame(['sealed' => 1, 'echo' => 'secret'], $result);
+            self::assertEquals(['echo' => 'secret', 'sealed' => 1], $result);
         } finally {
             $pool->close();
             $provider->stop();
