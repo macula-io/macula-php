@@ -184,6 +184,42 @@ final class PoolTest extends TestCase
         }
     }
 
+    public function testAnOverlongIssuerDidKeyIsRefusedAtOnce(): void
+    {
+        $root = NodeKey::generate(Profile::PqPure);
+        $provider = ProviderProcess::start(self::$env, 'gated', 0, admitted: true, issuer: $root->nodeIdHex());
+        $pool = $this->node(1);
+        $realm = self::$env->realmId;
+        $caps = [['with' => 'mri:org:' . self::$env->realmName . '/' . self::$env->org, 'can' => 'invoke']];
+        try {
+            $this->eventually('the gated provider is advertised', fn (): bool =>
+                $pool->providers($realm, $provider->procedure) !== []);
+            $granted = $root->ucan($pool->nodeId(), $caps, time() + 300);
+            self::assertSame(['served' => $pool->nodeId()],
+                $pool->call($realm, $provider->procedure, ucan: $granted));
+
+            // Base58 decodes in time quadratic in its length, ahead of the
+            // signature check: 300,000 characters outlast a 5 s call unbounded.
+            [$header, $claims, $signature] = explode('.', $granted);
+            $decoded = json_decode(base64_decode(strtr($claims, '-_', '+/')), true, flags: JSON_THROW_ON_ERROR);
+            $decoded['iss'] = 'did:key:z' . str_repeat('2', 300_000);
+            $forged = $header . '.' . rtrim(strtr(base64_encode(json_encode($decoded, JSON_THROW_ON_ERROR)), '+/', '-_'), '=')
+                . '.' . $signature;
+            $started = hrtime(true);
+            try {
+                $pool->call($realm, $provider->procedure, ucan: $forged, timeoutMs: 5000);
+                self::fail('an over-long issuer was served');
+            } catch (ProviderError $e) {
+                self::assertSame('unauthorized', $e->errorCode);
+            }
+            $elapsed = (hrtime(true) - $started) / 1e9;
+            self::assertLessThan(5.0, $elapsed, "refused after {$elapsed} s");
+        } finally {
+            $pool->close();
+            $provider->stop();
+        }
+    }
+
     public function testACallReportSaysWhetherTheExchangeWasSealedAndToWhichKey(): void
     {
         $sealed = ProviderProcess::start(self::$env, 'sealed', 0, admitted: true);

@@ -105,7 +105,8 @@ final class NodeKey
      * `mri:proc:<realm>/<org>/<name>`), until expS (Unix seconds). A delegated
      * token names its parent in prf by Ucan::proofId; the audience is always
      * the node that will present it. fct, when given, is null or an object
-     * (new \stdClass() or a decoded JSON object), never a PHP array.
+     * (new \stdClass() or a decoded JSON object), never a PHP array. An expS
+     * more than ten years past now, or an nbf not before it, is refused.
      *
      * @param list<array{with: string, can: string}> $caps
      * @param list<string> $prf
