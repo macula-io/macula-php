@@ -15,6 +15,15 @@ use PHPUnit\Framework\TestCase;
  */
 final class WireVersionTest extends TestCase
 {
+    public function testWireVersionMatchesTheHeadersMacro(): void
+    {
+        $header = file_get_contents(__DIR__ . '/../abi/macula.h');
+        self::assertIsString($header);
+        self::assertSame(1, preg_match('/^#define MACULA_WIRE_VERSION "([^"]+)"$/m', $header, $m),
+            'abi/macula.h declares no MACULA_WIRE_VERSION');
+        self::assertSame(Binding::WIRE_VERSION, $m[1], 'Binding::WIRE_VERSION drifted from abi/macula.h');
+    }
+
     public function testTheLoadedLibrarySpeaksThisBindingsWire(): void
     {
         $wire = \FFI::string(Binding::ffi()->macula_wire_version());
