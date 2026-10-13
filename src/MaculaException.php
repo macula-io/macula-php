@@ -10,8 +10,11 @@ namespace Macula;
  * "not_found", "no_provider", "refused", "closed", "failed" and the rest. */
 class MaculaException extends \RuntimeException
 {
-    public function __construct(string $message, public readonly string $kind = 'failed')
-    {
-        parent::__construct($message);
+    public function __construct(
+        string $message,
+        public readonly string $kind = 'failed',
+        ?\Throwable $previous = null,
+    ) {
+        parent::__construct($message, 0, $previous);
     }
 }

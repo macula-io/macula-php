@@ -27,6 +27,33 @@ final class WireVersionTest extends TestCase
         self::assertSame(Binding::WIRE_MAJOR, strtok($m[1], '.'), 'the wire major drifted from abi/macula.h');
     }
 
+    /**
+     * A library that will not load at all is refused in this package's own
+     * words, naming the path and the remedy, rather than letting FFI's error
+     * out. The one to expect in the field is a release older than macula-go
+     * v0.27.0, whose symbols predate macula_wire_version. Its own process:
+     * Binding caches the loaded library, so this load has to be the first.
+     */
+    #[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
+    public function testALibraryThatWillNotLoadIsRefusedInThisPackagesWords(): void
+    {
+        $notALibrary = realpath(__DIR__ . '/../composer.json');
+        self::assertIsString($notALibrary, 'composer.json is missing, so there is nothing to load as a library');
+        putenv("MACULA_LIBRARY_PATH={$notALibrary}");
+
+        try {
+            Binding::ffi();
+            self::fail('a file that is not a library loaded as one');
+        } catch (MaculaException $e) {
+            self::assertStringContainsString($notALibrary, $e->getMessage(), 'the refused path is not named');
+            self::assertStringContainsString('composer build', $e->getMessage(), 'no remedy is given');
+            self::assertInstanceOf(\FFI\Exception::class, $e->getPrevious(),
+                'the FFI error itself is chained, so the reason it failed is still readable');
+        } finally {
+            putenv('MACULA_LIBRARY_PATH');
+        }
+    }
+
     public function testTheLoadedLibrarySpeaksThisBindingsWire(): void
     {
         $wire = \FFI::string(Binding::ffi()->macula_wire_version());

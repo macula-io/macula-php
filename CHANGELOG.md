@@ -24,7 +24,10 @@ procedures. A pre-1.0 station does not accept it.
   another wire major (`Binding::WIRE_MAJOR`), as it already refused a wrong ABI
   at load; another minor is taken, since every wire 1.x peer shares the frozen
   core (cabi/CONTRACT.md). ABI stayed 1, so the ABI check alone would load a
-  wire 0.x library and fail only after a frame reached the peer.
+  wire 0.x library and fail only after a frame reached the peer. A library from
+  before macula-go v0.27.0 reports no wire at all, since it fails resolving
+  `macula_wire_version`, and `Binding` refuses that too in its own words,
+  naming the path and `composer build`, rather than letting FFI's error out.
 
 ### Changed
 

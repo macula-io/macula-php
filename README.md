@@ -21,12 +21,12 @@
 
 > **Wire 1.0, 0.9.0-rc.1 (a pre-release):** built on macula-go v0.27.0-rc.1, it
 > speaks wire 1.0 (macula 15) and nothing older, so it reaches only a wire 1.0
-> station. As a pre-release it is not what a default install resolves — 0.8.2
-> stays `latest` for the live fleet — install the candidate with
+> station. A pre-release is not what a default install resolves, so 0.8.2 stays
+> `latest` for the live fleet; install the candidate with
 > `composer require macula-io/macula-php:0.9.0-rc.1`.
 >
 > **Status, 2026-10-05:** over macula-go's **released** libmacula (the tag in
-> `abi/MACULA_GO_REF`, ABI 1), so on the macula 13 wire: handshake v5 bound to
+> `abi/MACULA_GO_REF`, ABI 1), so on wire 1.0 (macula 15): handshake v5 bound to
 > the TLS session, end-to-end sealed calls and streams to a provider that
 > advertises a KEM key (`Confidentiality`), post-quantum identities (ML-DSA-87,
 > as the ML-DSA-87 + RSA-PSS-4096 composite in pq_hybrid, the fleet's profile)

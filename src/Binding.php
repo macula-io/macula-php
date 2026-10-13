@@ -114,7 +114,8 @@ final class Binding
     /**
      * The loaded library: MACULA_LIBRARY_PATH, or this platform's library in
      * build/native, which `composer build` fetches and checks. A library built
-     * for another ABI version or another wire is refused.
+     * for another ABI version or another wire is refused, and so is one from
+     * before macula-go v0.27.0, which cannot report a wire at all.
      */
     public static function ffi(): \FFI
     {
@@ -124,7 +125,14 @@ final class Binding
                 throw new MaculaException("libmacula not found at {$path}: fetch it with `composer build`"
                     . ' (or set MACULA_LIBRARY_PATH)');
             }
-            $ffi = \FFI::cdef(self::CDEF, $path);
+            try {
+                $ffi = \FFI::cdef(self::CDEF, $path);
+            } catch (\FFI\Exception $e) {
+                throw new MaculaException("libmacula at {$path} could not be loaded: {$e->getMessage()}."
+                    . ' A library older than macula-go v0.27.0 carries no macula_wire_version and is refused'
+                    . ' here; fetch what `composer build` pins, or point MACULA_LIBRARY_PATH at a'
+                    . ' v0.27.0-rc.1 or later library', previous: $e);
+            }
             $version = $ffi->macula_abi_version();
             if ($version !== self::ABI_VERSION) {
                 throw new MaculaException("libmacula at {$path} is ABI {$version}; macula-php needs ABI "

@@ -35,7 +35,7 @@ final class Pool
      * @param int $timeoutMs how long to wait for a first link, 30 s when 0
      * @param bool $kemAdvertise name this node's KEM key in its confidential
      *   procedures' advertisements, so callers seal to it: only once every
-     *   station runs macula 12.11 or later
+     *   station speaks wire 1.0
      */
     public static function connect(
         NodeKey $key,
