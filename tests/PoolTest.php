@@ -515,6 +515,31 @@ final class PoolTest extends TestCase
         }
     }
 
+    /**
+     * status() hands every link back as a LinkStatus whose two bools come from
+     * the library's 0/1, so a caller can read them at all: passing the raw int
+     * into a bool parameter is a TypeError under strict types.
+     */
+    public function testEveryLinkIsReportedUpAndPinnedToItsStation(): void
+    {
+        $node = $this->node(0);
+        try {
+            $links = $node->status();
+            self::assertNotSame([], $links, 'the pool reports its seed link');
+            $up = array_values(array_filter($links, fn ($l) => $l->up));
+            self::assertNotSame([], $up, 'the link it dialed is up');
+            // Both fields reach the caller as bools. A seed is not a direct
+            // dial: direct is set only for a station the pool dials for a call.
+            self::assertFalse($up[0]->direct, 'a seed link is not a direct dial');
+            $pinned = self::$env->stations[0]['node_id'];
+            $proved = $up[0]->station;
+            self::assertTrue($pinned === $proved || str_starts_with($proved, $pinned) || str_starts_with($pinned, $proved),
+                "the station proved its pinned node_id: {$proved} vs {$pinned}");
+        } finally {
+            $node->close();
+        }
+    }
+
     private static function pattern(int $n): string
     {
         $out = '';

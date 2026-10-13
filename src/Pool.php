@@ -89,8 +89,9 @@ final class Pool
     {
         $h = $this->live();
         $links = Wire::decode(Binding::takeString(Binding::call(fn ($err) => Binding::ffi()->macula_pool_status($h, $err))));
-        return array_map(fn (array $l) => new LinkStatus($l['station'], $l['host'], $l['port'], $l['direct'], $l['up']),
-            $links ?? []);
+        // The library carries no booleans: `direct` and `up` come back as 0/1.
+        return array_map(fn (array $l) => new LinkStatus($l['station'], $l['host'], $l['port'],
+            ($l['direct'] ?? 0) === 1, ($l['up'] ?? 0) === 1), $links ?? []);
     }
 
     /**
