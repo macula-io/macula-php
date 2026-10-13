@@ -25,6 +25,9 @@ final class Binding
     /** The wire this binding is written against, major.minor (macula 15). */
     public const WIRE_VERSION = '1.0';
 
+    /** The wire major every wire 1.x peer shares (the frozen core). */
+    public const WIRE_MAJOR = '1';
+
     private const CDEF = <<<'CDEF'
         int32_t macula_abi_version(void);
         char *macula_wire_version(void);
@@ -136,15 +139,17 @@ final class Binding
     /**
      * Refuses a library that does not speak this binding's wire. Since ABI 1
      * carries macula_wire_version, a library from the same ABI can still be a
-     * different wire (the wire changes under a stable ABI), and a call to the
+     * different wire (the wire moves under a stable ABI), and a call to the
      * wrong wire would be refused by the peer only after it is on the wire, so
-     * it is refused here at load. The library owns the string.
+     * it is refused here at load. Every wire 1.x peer shares the frozen core,
+     * so another major is refused and another minor is taken (cabi/CONTRACT.md,
+     * "Version"). The library owns the string.
      */
     public static function checkWireVersion(string $wire, string $path): void
     {
-        if ($wire !== self::WIRE_VERSION) {
+        if (strtok($wire, '.') !== self::WIRE_MAJOR) {
             throw new MaculaException("libmacula at {$path} speaks wire {$wire}; macula-php needs wire "
-                . self::WIRE_VERSION);
+                . self::WIRE_MAJOR . '.x');
         }
     }
 

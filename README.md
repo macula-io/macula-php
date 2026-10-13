@@ -187,7 +187,7 @@ libmacula is macula-go's C ABI (`abi/macula.h`, its contract in macula-go's
 load. `composer build` downloads it for the tag in `abi/MACULA_GO_REF`, checks
 it against the release's `SHA256SUMS` and build attestation, and refuses a
 release whose `macula.h` is not `abi/macula.h`; `Binding` refuses a library of
-another ABI version. Payloads cross as JSON. Every call that does network I/O
+another ABI version, or another wire major. Payloads cross as JSON. Every call that does network I/O
 blocks the calling PHP thread. What arrives on its own (a subscription's
 events, a served procedure's calls, a streaming procedure's sessions) waits in
 a bounded inbox in the library until a `*_next` function takes it.

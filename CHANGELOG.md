@@ -20,10 +20,11 @@ procedures. A pre-1.0 station does not accept it.
 ### Added
 
 - **A load-time wire check.** libmacula now reports the wire it speaks
-  (`macula_wire_version`, macula-go v0.27.0), and `Binding` refuses a library
-  whose wire is not this binding's (`Binding::WIRE_VERSION`, `1.0`), as it
-  already refused a wrong ABI at load. ABI stayed 1, so the ABI check alone
-  would load a wire 0.x library and fail only after a frame reached the peer.
+  (`macula_wire_version`, macula-go v0.27.0), and `Binding` refuses a library of
+  another wire major (`Binding::WIRE_MAJOR`), as it already refused a wrong ABI
+  at load; another minor is taken, since every wire 1.x peer shares the frozen
+  core (cabi/CONTRACT.md). ABI stayed 1, so the ABI check alone would load a
+  wire 0.x library and fail only after a frame reached the peer.
 
 ### Changed
 
