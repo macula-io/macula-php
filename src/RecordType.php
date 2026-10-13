@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Macula;
 
-/** macula 12's DHT record types. */
+/** macula 15's DHT record types. */
 enum RecordType: int
 {
     case NodeRecord = 0x01;

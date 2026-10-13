@@ -22,8 +22,12 @@ final class Binding
     /** The ABI version this binding is written against. */
     public const ABI_VERSION = 1;
 
+    /** The wire this binding is written against, major.minor (macula 15). */
+    public const WIRE_VERSION = '1.0';
+
     private const CDEF = <<<'CDEF'
         int32_t macula_abi_version(void);
+        char *macula_wire_version(void);
         void macula_free_string(char *s);
         void macula_free_bytes(uint8_t *b);
 
@@ -107,7 +111,7 @@ final class Binding
     /**
      * The loaded library: MACULA_LIBRARY_PATH, or this platform's library in
      * build/native, which `composer build` fetches and checks. A library built
-     * for another ABI version is refused.
+     * for another ABI version or another wire is refused.
      */
     public static function ffi(): \FFI
     {
@@ -123,9 +127,25 @@ final class Binding
                 throw new MaculaException("libmacula at {$path} is ABI {$version}; macula-php needs ABI "
                     . self::ABI_VERSION);
             }
+            self::checkWireVersion(\FFI::string($ffi->macula_wire_version()), $path);
             self::$ffi = $ffi;
         }
         return self::$ffi;
+    }
+
+    /**
+     * Refuses a library that does not speak this binding's wire. Since ABI 1
+     * carries macula_wire_version, a library from the same ABI can still be a
+     * different wire (the wire changes under a stable ABI), and a call to the
+     * wrong wire would be refused by the peer only after it is on the wire, so
+     * it is refused here at load. The library owns the string.
+     */
+    public static function checkWireVersion(string $wire, string $path): void
+    {
+        if ($wire !== self::WIRE_VERSION) {
+            throw new MaculaException("libmacula at {$path} speaks wire {$wire}; macula-php needs wire "
+                . self::WIRE_VERSION);
+        }
     }
 
     /** The released library's file name for this platform. */

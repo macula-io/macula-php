@@ -6,6 +6,31 @@ to v0.3.4 are described in their annotated git tag messages.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0-rc.1] - 2026-10-13
+
+Wire 1.0, a release candidate: a pre-release stability version, so a default
+`composer require macula-io/macula-php` keeps resolving 0.8.2 for the live
+fleet until wire 1.0 ships there.
+
+On macula-go v0.27.0-rc.1's libmacula (was v0.26.0), which speaks **wire 1.0**
+(macula 15) and nothing older (macula-go#30): the wire 1.0 envelope, handshake
+version 5 with session proof V2, records 1.0 and the versioned `_dht.*`
+procedures. A pre-1.0 station does not accept it.
+
+### Added
+
+- **A load-time wire check.** libmacula now reports the wire it speaks
+  (`macula_wire_version`, macula-go v0.27.0), and `Binding` refuses a library
+  whose wire is not this binding's (`Binding::WIRE_VERSION`, `1.0`), as it
+  already refused a wrong ABI at load. ABI stayed 1, so the ABI check alone
+  would load a wire 0.x library and fail only after a frame reached the peer.
+
+### Changed
+
+- The native library is built from macula-go v0.27.0-rc.1 (macula-go#30), and
+  `abi/macula.h` is the tag's header. The in-process test stations are wire 1.0
+  too, and every test passes on them.
+
 ## [0.8.2] - 2026-10-09
 
 On macula-go v0.26.0's libmacula (was v0.23.0).
