@@ -20,11 +20,11 @@
 
 ---
 
-> **Wire 1.0, 0.9.0-rc.1 (a pre-release):** built on macula-go v0.27.0-rc.1, it
+> **Wire 1.0, 0.9.0-rc.2 (a pre-release):** built on macula-go v0.27.0-rc.1, it
 > speaks wire 1.0 (macula 15) and nothing older, so it reaches only a wire 1.0
 > station. A pre-release is not what a default install resolves, so 0.8.2 stays
 > `latest` for the live fleet; install the candidate with
-> `composer require macula-io/macula-php:0.9.0-rc.1`.
+> `composer require macula-io/macula-php:0.9.0-rc.2`.
 >
 > **Status, 2026-10-05:** over macula-go's **released** libmacula (the tag in
 > `abi/MACULA_GO_REF`, ABI 1), so on wire 1.0 (macula 15): handshake v5 bound to

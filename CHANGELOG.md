@@ -6,6 +6,24 @@ to v0.3.4 are described in their annotated git tag messages.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0-rc.2] - 2026-10-13
+
+On macula-go v0.27.0-rc.1's libmacula, as 0.9.0-rc.1. A pre-release: a default
+`composer require macula-io/macula-php` keeps resolving 0.8.2, which carries the
+defect below; 0.9.0 is where it is fixed.
+
+### Fixed
+
+- **`Pool::status()` no longer throws on a pool with a link.** It passed the
+  library's `0/1`, as everything on the wire is, straight into `LinkStatus`'s
+  `bool` parameters, which is a `TypeError` under `declare(strict_types=1)`, so
+  the first link ended the call. Nothing in this package called `status()`, so
+  neither the suite nor CI ever reached the line, and it dates from 0.5.0: every
+  release since carries it, the whole 0.8.x line included. The fix lands here,
+  not there. Both fields are now read as `=== 1`, and a seed link comes back
+  `direct: false`, as macula-go sets that only for a station the pool dials for
+  a call. #5.
+
 ## [0.9.0-rc.1] - 2026-10-13
 
 Wire 1.0, a release candidate: a pre-release stability version, so a default
