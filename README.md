@@ -250,14 +250,18 @@ A provider a test calls runs in a PHP process of its own
 8.3 (PHPUnit 12's floor); the library itself runs on PHP ≥ 8.1.
 
 `tests/GroupTest.php` stands an org's distributor in for the groups half: the
-group-key vectors the Erlang implementation checks cross the ABI byte for
-byte, and each refusal macula names arrives here as the reason it is named.
-The live half is `scripts/interop/groups.sh`, which runs macula's own
-distributor in Erlang and puts a PHP member and an Erlang member under one
-group: each opens the other's sealed event under one epoch, a removed node is
-refused `not_a_member`, and a node presenting a grant minted for another node
-is refused. `.github/workflows/sealed-interop.yml` runs it on every pull
-request and main push, in both profiles.
+group-key vectors macula's implementation checks are carried here whole, the
+file byte for byte with its sha pinned, and each refusal macula names arrives
+here as the reason it is named. What PHP is party to is asserted at the value
+level, the epoch a sealed event carries and the reason of a refusal, because
+the CALL and the RESULT cross the ABI as CBOR inside libmacula and PHP
+re-derives no vector. The live half is `scripts/interop/groups.sh`, which runs
+macula's own distributor in Erlang and puts a PHP member and an Erlang member
+under one group: each opens the other's sealed event under one epoch, a removed
+node is refused `not_a_member`, and a node presenting a grant minted for
+another node is refused, the gate's own `unauthorized` in the refusal and not
+only its catch-all reason. `.github/workflows/sealed-interop.yml` runs it on
+every pull request and main push, in both profiles.
 
 `tests/LampsCompositeTest.php` holds pq_hybrid, the LAMPS composite
 id-MLDSA87-RSA4096-PSS-SHA512, to `draft-ietf-lamps-pq-composite-sigs`' own

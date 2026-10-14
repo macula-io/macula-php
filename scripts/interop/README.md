@@ -46,7 +46,10 @@ one realm, and needs `podman`, `python3` and the CI image it names.
   The check joins with the grant first, from the node it was minted for, so the
   refusal that follows is the token's and not an unreachable distributor; and
   it checks from a second node, because a group already held is not pulled
-  again.
+  again. The refusal must also carry the gate's own code, `unauthorized`:
+  `no_distributor` is the catch-all a caller sees for a distributor that is
+  unreachable or has gone away, so the reason alone would stay green through an
+  outage, and only the gate can answer a code.
 
 Every seal, every open and every key pull happens inside libmacula. The PHP
 side holds no epoch key, caches no key material and re-encodes no sealed
@@ -57,8 +60,11 @@ refusal is held as.
 
 2026-10-14, `macula-ci-otp@sha256:aff1d39b...`, macula 15.0.0-rc.2 from hex as
 a rebar3 dependency: both profiles, both members opened the other's event under
-one epoch, the removed node was refused `not_a_member`, the impostor was
-refused `no_distributor`, exit 0.
+one epoch, the removed node was refused `not_a_member`, and the impostor was
+refused `no_distributor`, its refusal crossing whole as `group: no_distributor:
+stationlink: the provider answered unauthorized`, exit 0. That last line is the
+check the paragraph above describes: macula's own gate code is what the PHP app
+holds, and an outage would have given the reason without it.
 
 `.github/workflows/sealed-interop.yml` runs both profiles on every PR and main
 push, and records the log as an artifact.

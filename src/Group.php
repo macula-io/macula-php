@@ -8,9 +8,11 @@ namespace Macula;
  * The sealed group a publish or subscribe is under (macula 13.2,
  * DESIGN_E2E_SEALED_PUBSUB.md): its `prefix`, which the topic must be under
  * and whose second `/`-segment is the org whose distributor holds the group's
- * keys; the org's `ucan`, a grant carrying `can` "group_keys", presented on
- * every key pull; and the `distributor`'s node id, when the group's keys must
- * come from that node (a `~<node_id>` group needs it).
+ * keys; the org's `ucan`, a grant carrying `can` "group_keys", which the
+ * group's key pulls are authorized with, the grant of the first join for a
+ * prefix being the one the library holds; and the `distributor`'s node id,
+ * when the group's keys must come from that node (a `~<node_id>` group needs
+ * it).
  *
  * A group is a value: build it once and pass it to Pool::publishGroup and
  * Pool::subscribeGroup, which join it first (pulling the current epoch from

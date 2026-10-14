@@ -230,6 +230,11 @@ final class Pool
      * Required group the node holds refuses a clear event rather than
      * delivering it, so a publish under such a prefix that is not sealed
      * fails with GroupError::REASON_HELD.
+     *
+     * The join's pull is bounded by timeoutMs, 5 s by default and shorter
+     * than the 15 s the ABI allows one pull, so a pull slower than the
+     * default fails as a MaculaException of kind "timeout" and not as a
+     * GroupError.
      */
     public function publishGroup(
         string $realm,
@@ -258,6 +263,11 @@ final class Pool
      * Under a Required group a clear event is refused, not delivered.
      *
      * The topic must be under the group's prefix.
+     *
+     * The join's pull is bounded by timeoutMs, 5 s by default and shorter
+     * than the 15 s the ABI allows one pull, so a pull slower than the
+     * default fails as a MaculaException of kind "timeout" and not as a
+     * GroupError.
      */
     public function subscribeGroup(
         string $realm,

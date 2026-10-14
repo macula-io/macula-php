@@ -134,9 +134,11 @@ final class Binding
                 $ffi = \FFI::cdef(self::CDEF, $path);
             } catch (\FFI\Exception $e) {
                 throw new MaculaException("libmacula at {$path} could not be loaded: {$e->getMessage()}."
-                    . ' A library older than macula-go v0.27.0 carries no macula_wire_version and is refused'
-                    . ' here; fetch what `composer build` pins, or point MACULA_LIBRARY_PATH at another'
-                    . ' library of the same ABI that reports a wire', previous: $e);
+                    . ' A library older than the one `composer build` fetches is missing symbols this'
+                    . ' binding declares: the sealed-group entry points, the wire version and the library'
+                    . ' version all arrived in macula-go v0.27.0-rc.3. Fetch what `composer build` pins, or'
+                    . ' point MACULA_LIBRARY_PATH at another library of this ABI and not older',
+                    previous: $e);
             }
             $version = $ffi->macula_abi_version();
             if ($version !== self::ABI_VERSION) {

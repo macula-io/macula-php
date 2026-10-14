@@ -274,6 +274,15 @@ final class GroupTest extends TestCase
             self::assertInstanceOf(GroupError::class, $refused, 'a grant minted for another node');
             self::assertSame(GroupError::REASON_NO_DISTRIBUTOR, $refused->reason);
             self::assertNull($refused->prefix, 'only a held group names a prefix');
+            // no_distributor is the catch-all: a distributor that is
+            // unreachable, one that died, and a gate that refuses the caller
+            // all arrive as it. So the verdict is held to the two things only
+            // the gate gives: the refusal names the gate's code, which an
+            // outage does not, and the impostor's pull never reached the
+            // handler, the member's single pull being the only call in the
+            // file.
+            self::assertStringContainsString('unauthorized', $refused->getMessage());
+            self::assertCount(1, $this->calls($callsFile), 'only the member\'s pull reached the handler');
         } finally {
             $distributor->stop();
             $member->close();

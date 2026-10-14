@@ -143,7 +143,12 @@ function stranger(Pool $pool, string $work, string $realm, string $topic, string
  *  yet, and it is indistinguishable from the refusal this mode is checking
  *  for. So reachability is established the way the offline suite establishes
  *  it, by waiting until the procedure is advertised, and the one subscribe
- *  that follows is the verdict. */
+ *  that follows is the verdict.
+ *
+ *  The verdict is held to more than its reason, because no_distributor is the
+ *  catch-all: a distributor that has gone away since the first pool's pull
+ *  answers the same reason, so the message must also carry the gate's own
+ *  code, `unauthorized`. */
 function impostor(
     Pool $first,
     Seed $seed,
@@ -181,10 +186,22 @@ function impostor(
     if ($refused === null) {
         fail("a grant minted for another node was accepted by {$second->nodeIdHex()}");
     }
-    say("impostor subscribe: {$refused->reason}");
-    return $refused->reason === GroupError::REASON_NO_DISTRIBUTOR
+    // The reason and the message both, so the log carries the gate's own code
+    // and not only the catch-all reason it is held as.
+    say("impostor subscribe: {$refused->reason}: {$refused->getMessage()}");
+    if ($refused->reason !== GroupError::REASON_NO_DISTRIBUTOR) {
+        fail("a grant minted for another node was refused {$refused->reason}, not no_distributor");
+    }
+    // no_distributor is the catch-all: a distributor that is unreachable, one
+    // that has died, and a gate that refuses the caller all arrive as it, so
+    // no_distributor alone would stay green in a run where the distributor
+    // went away. The gate's own code in the message is what an outage cannot
+    // give: macula refuses a caller its policy does not authorize with
+    // `unauthorized` (macula_station_link), which crosses to here as the
+    // provider's code.
+    return str_contains($refused->getMessage(), 'unauthorized')
         ? 0
-        : fail("a grant minted for another node was refused {$refused->reason}, not no_distributor");
+        : fail("the impostor was refused {$refused->reason} without the gate's code: {$refused->getMessage()}");
 }
 
 /** The event the Erlang member sealed, opened under the group. Its own publish
