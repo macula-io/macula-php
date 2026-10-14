@@ -411,4 +411,51 @@ final class GroupTest extends TestCase
             $pool->close();
         }
     }
+
+    /**
+     * macula-php#11: a group's grant is a bearer credential a distributor
+     * accepts, so what a class can redact is redacted, and the three paths PHP
+     * gives a class no hook for are pinned here rather than assumed — a PHP that
+     * ever gains one fails this test instead of silently leaving the class doc
+     * wrong.
+     */
+    public function testAGroupNeverPrintsItsGrant(): void
+    {
+        // A grant for a node that is never called: this test formats a group and
+        // touches no station beyond the harness the class already starts.
+        $grant = self::$env->grant(str_repeat('ab', 32));
+        $group = new Group($this->prefix(), ucan: $grant);
+        $without = new Group($this->prefix());
+
+        ob_start();
+        var_dump($group);
+        $dumped = (string) ob_get_clean();
+
+        foreach ([
+            'print_r' => print_r($group, true),
+            'var_dump' => $dumped,
+            'json_encode' => json_encode($group, JSON_THROW_ON_ERROR),
+            'a json_encode with the group nested' => json_encode(['group' => $group], JSON_THROW_ON_ERROR),
+        ] as $path => $printed) {
+            self::assertStringNotContainsString($grant, $printed, $path . ' shows the grant');
+            // Not a part of it either, so a redaction that trimmed the text
+            // rather than leaving it out would fail here.
+            self::assertStringNotContainsString(substr($grant, 0, 64), $printed, $path . ' shows part of the grant');
+            // Still the group, though: json_encode escapes the prefix's slashes
+            // unless it is asked not to, and that is the only difference.
+            self::assertStringContainsString($group->prefix, str_replace('\\/', '/', $printed),
+                $path . ' still names the group');
+        }
+
+        self::assertSame('(set)', $group->__debugInfo()['ucan'], 'a grant that is there reads as present');
+        self::assertNull($without->__debugInfo()['ucan'], 'and a group with none says so rather than redacting');
+        self::assertStringContainsString('"ucan":null', json_encode($without, JSON_THROW_ON_ERROR));
+
+        // What PHP does not let a class close: an (array) cast and var_export()
+        // ignore __debugInfo, and serialize() writes what a caller asked to keep.
+        // Asserted so the class doc's boundary is checked, not believed.
+        self::assertStringContainsString($grant, print_r((array) $group, true), 'an (array) cast exposes it');
+        self::assertStringContainsString($grant, var_export($group, true), 'var_export() exposes it');
+        self::assertStringContainsString($grant, serialize($group), 'serialize() keeps it');
+    }
 }

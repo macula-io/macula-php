@@ -18,8 +18,19 @@ namespace Macula;
  * Pool::subscribeGroup, which join it first (pulling the current epoch from
  * the distributor over a sealed call the grant authorizes) and then seal the
  * publish under, or open the subscription's events under, that epoch.
+ *
+ * The `ucan` is a bearer credential, so what a debugger or a log shows names
+ * it as present rather than printing it, as macula-py's Group and
+ * macula-dotnet's UcanPresentation do. `print_r`, `var_dump` and
+ * `json_encode`, the last including a Group nested in the context a logger
+ * encodes, are what this class can redact. Three ways of reading an object are
+ * outside any class's control and therefore show it: an `(array)` cast and
+ * `var_export()` ignore __debugInfo and expose every property including the
+ * private ones, and `serialize()` writes them for a caller who asked for
+ * persistence, which is a request to keep the group working rather than to log
+ * it. Do not reach for those three when what is wanted is something to print.
  */
-final class Group
+final class Group implements \JsonSerializable
 {
     /**
      * @param string $prefix the group's prefix, at least two `/`-segments
@@ -56,5 +67,36 @@ final class Group
             $o['distributor'] = bin2hex(Wire::id32($this->distributor, "a group's distributor"));
         }
         return $o;
+    }
+
+    /**
+     * What `print_r`, `var_dump` and every debugger show: the group, with its
+     * grant named as present rather than printed. A grant is a bearer
+     * credential a distributor accepts, so a debugging aid that showed it would
+     * hand out the group's keys to whoever reads the output.
+     *
+     * Note what this does and does not reach: an `(array)` cast, `var_export()`
+     * and `serialize()` are outside it, as the class doc says.
+     *
+     * @return array{prefix: string, ucan: string|null, distributor: string|null}
+     */
+    public function __debugInfo(): array
+    {
+        return [
+            'prefix' => $this->prefix,
+            'ucan' => $this->ucan === null ? null : '(set)',
+            'distributor' => $this->distributor,
+        ];
+    }
+
+    /**
+     * What `json_encode` shows, including when a Group sits inside the context
+     * a logger encodes. The grant is redacted for the reason __debugInfo gives.
+     *
+     * @return array{prefix: string, ucan: string|null, distributor: string|null}
+     */
+    public function jsonSerialize(): array
+    {
+        return $this->__debugInfo();
     }
 }

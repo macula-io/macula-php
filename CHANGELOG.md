@@ -6,6 +6,24 @@ to v0.3.4 are described in their annotated git tag messages.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0-rc.4] - 2026-10-14
+
+### Changed
+
+- **`Group` no longer prints its grant when it is dumped or encoded**
+  (macula-php#11). The org's grant is a bearer credential a distributor
+  accepts, and it was a public property with nothing to redact it, so
+  `print_r`, `var_dump` and a json-encoded log context printed it — the last
+  including a `Group` nested in the context a logger encodes. `__debugInfo()`
+  and `JsonSerializable` now name the grant as present rather than printing
+  it, as macula-py's `Group` and macula-dotnet's `UcanPresentation` already
+  do. `options()` is untouched: what goes to `publishGroup` and
+  `subscribeGroup` still carries the grant, which is the whole point of it.
+  Three ways of reading an object are outside what a PHP class can redact,
+  and the class doc names them rather than leaving them to be assumed away:
+  an `(array)` cast and `var_export()` expose every property including the
+  private ones, and `serialize()` writes what a caller asked to keep.
+
 ## [0.9.0-rc.3] - 2026-10-14
 
 On macula-go v0.27.0-rc.3's libmacula (was v0.27.0-rc.1), which carries the
