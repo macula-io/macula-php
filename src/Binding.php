@@ -64,6 +64,11 @@ final class Binding
         void macula_pool_publish(uintptr_t pool, const uint8_t *realm, const char *topic, const char *payload_json,
             int64_t ttl_ms, char **err_out);
         uintptr_t macula_pool_subscribe(uintptr_t pool, const uint8_t *realm, const char *topic, char **err_out);
+        void macula_pool_publish_group(uintptr_t pool, const uint8_t *realm, const char *topic,
+            const char *payload_json, const char *options_json, int64_t ttl_ms, int64_t timeout_ms, uintptr_t cancel,
+            char **err_out);
+        uintptr_t macula_pool_subscribe_group(uintptr_t pool, const uint8_t *realm, const char *topic,
+            const char *options_json, int64_t timeout_ms, uintptr_t cancel, char **err_out);
         char *macula_subscription_next(uintptr_t subscription, int64_t timeout_ms, uintptr_t cancel, int32_t *closed,
             char **err_out);
         void macula_subscription_stop(uintptr_t subscription);
@@ -130,8 +135,8 @@ final class Binding
             } catch (\FFI\Exception $e) {
                 throw new MaculaException("libmacula at {$path} could not be loaded: {$e->getMessage()}."
                     . ' A library older than macula-go v0.27.0 carries no macula_wire_version and is refused'
-                    . ' here; fetch what `composer build` pins, or point MACULA_LIBRARY_PATH at a'
-                    . ' v0.27.0-rc.1 or later library', previous: $e);
+                    . ' here; fetch what `composer build` pins, or point MACULA_LIBRARY_PATH at another'
+                    . ' library of the same ABI that reports a wire', previous: $e);
             }
             $version = $ffi->macula_abi_version();
             if ($version !== self::ABI_VERSION) {
@@ -208,6 +213,7 @@ final class Binding
             'unavailable' => new ContentUnavailableError(implode('; ', $e['failures'] ?? [])),
             'confidentiality' => new ConfidentialityError((string) ($e['reason'] ?? ''), $e['named'] ?? null,
                 $e['found'] ?? null, $message),
+            'group' => new GroupError((string) ($e['reason'] ?? ''), $e['prefix'] ?? null, $message),
             default => new MaculaException($message, $e['kind']),
         };
     }

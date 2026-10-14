@@ -25,6 +25,9 @@ final class ProviderProcess
         $this->procedure = $this->line();
     }
 
+    /** @param array<string, mixed> $extra what the kind needs beyond the
+     *   common config (the `groupdist' fixture's org_key_id, prefix, epoch,
+     *   calls_file and refuse_file) */
     public static function start(
         TestStations $env,
         string $kind,
@@ -32,10 +35,11 @@ final class ProviderProcess
         bool $admitted,
         bool $trusted = true,
         ?string $issuer = null,
+        array $extra = [],
     ): self
     {
         $s = $env->stations[$station];
-        $config = json_encode([
+        $config = json_encode(array_merge([
             'seed' => ['host' => $s['host'], 'port' => $s['port'], 'node_id' => $s['node_id']],
             'realm_id' => $env->realmId,
             'realm_key' => $trusted ? $env->realmKey : null,
@@ -43,7 +47,7 @@ final class ProviderProcess
             'kind' => $kind,
             'admitted' => $admitted,
             'issuer' => $issuer,
-        ], JSON_THROW_ON_ERROR);
+        ], $extra), JSON_THROW_ON_ERROR);
         $process = proc_open([PHP_BINARY, __DIR__ . '/fixtures/provider.php', $config],
             [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => STDERR], $pipes);
         if (!is_resource($process)) {

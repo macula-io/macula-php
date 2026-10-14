@@ -220,6 +220,60 @@ final class Pool
     }
 
     /**
+     * Publishes payload on topic in realm sealed under group's current epoch,
+     * for members holding that epoch's key. Joins the group first when it is
+     * not held: at least one sealed call to the distributor, which hands back
+     * the epoch key only when group's UCAN authorizes it, so a node the
+     * distributor refuses is a GroupError and nothing is sent.
+     *
+     * The topic must be under the group's prefix. A subscription under a
+     * Required group the node holds refuses a clear event rather than
+     * delivering it, so a publish under such a prefix that is not sealed
+     * fails with GroupError::REASON_HELD.
+     */
+    public function publishGroup(
+        string $realm,
+        string $topic,
+        mixed $payload,
+        Group $group,
+        int $ttlMs = 0,
+        int $timeoutMs = Wire::DEFAULT_CALL_TIMEOUT_MS,
+    ): void {
+        if ($ttlMs < 0) {
+            throw new \InvalidArgumentException('macula-php: a negative ttlMs');
+        }
+        $h = $this->live();
+        $realm32 = Binding::buffer(Wire::id32($realm, 'realm'));
+        $json = Wire::encode($payload);
+        $opts = Wire::encode($group->options());
+        Binding::call(fn ($err) => Binding::ffi()->macula_pool_publish_group($h, $realm32, $topic, $json, $opts,
+            $ttlMs, $timeoutMs, 0, $err));
+    }
+
+    /**
+     * Subscribes to topic in realm under group. Joins the group first, as
+     * publishGroup does, and refuses with the join's GroupError; then each of
+     * its events arrives opened under the epoch it was sealed with, or once
+     * with Event::$unopened set and no payload when this node cannot open it.
+     * Under a Required group a clear event is refused, not delivered.
+     *
+     * The topic must be under the group's prefix.
+     */
+    public function subscribeGroup(
+        string $realm,
+        string $topic,
+        Group $group,
+        int $timeoutMs = Wire::DEFAULT_CALL_TIMEOUT_MS,
+        BytesOutput $bytes = BytesOutput::Hex,
+    ): Subscription {
+        $h = $this->live();
+        $realm32 = Binding::buffer(Wire::id32($realm, 'realm'));
+        $opts = Wire::encode($group->options());
+        return new Subscription(Binding::call(fn ($err) => Binding::ffi()->macula_pool_subscribe_group($h, $realm32,
+            $topic, $opts, $timeoutMs, 0, $err)), $bytes);
+    }
+
+    /**
      * Serves procedure in realm. Its calls wait until Served::next or
      * Served::handle takes them, each answered by its deadline or for it with
      * an error. An org procedure needs the realm's key pinned and the org's

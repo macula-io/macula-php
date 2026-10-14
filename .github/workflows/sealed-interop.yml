@@ -1,0 +1,76 @@
+name: Sealed interop
+
+# macula (Erlang) and macula-php read and write one sealed group, both ways, in
+# both profiles (scripts/interop/groups.sh, README "the last run"). This runs
+# it on every PR and main push: a cross-SDK sealed-group claim rests on a
+# recorded CI run at the released sha, not on a run by hand.
+#
+# The Erlang side is macula from hex at MACULA_VERSION, compiled as a rebar3
+# dependency in macula's pinned CI image (the image groups.sh runs the Erlang
+# legs in), so the build and the run use one toolchain. The PHP side is this
+# SDK over the libmacula release abi/MACULA_GO_REF pins.
+#
+# workflow_dispatch takes another macula version: a release without sealed
+# groups (before 13.2) must turn this red, which is how the job was shown able
+# to fail.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+  workflow_dispatch:
+    inputs:
+      macula_version:
+        description: macula release from hex to interoperate with
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  # The version scripts/interop/README.md records as last run; move both together.
+  MACULA_VERSION: ${{ inputs.macula_version || '15.0.0-rc.2' }}
+  MACULA_CI_IMAGE: ghcr.io/macula-io/macula-ci-otp@sha256:aff1d39bc4aa29d13044b90b38e9b7f4b757d50818cc11c5bb7e84cdbf82ac70
+
+jobs:
+  sealed:
+    name: sealed interop (macula ${{ inputs.macula_version || '15.0.0-rc.2' }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.27"
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: ffi
+      - run: composer install --no-interaction --prefer-dist
+      # The released libmacula for abi/MACULA_GO_REF and macula-go's test
+      # station at that tag, both checked: groups.sh requires build/teststation.
+      - run: composer build
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Build macula ${{ env.MACULA_VERSION }} from hex in the CI image
+        run: |
+          mkdir -p "$RUNNER_TEMP/macula-build"
+          printf '{deps, [{macula, "%s"}]}.\n' "$MACULA_VERSION" > "$RUNNER_TEMP/macula-build/rebar.config"
+          podman run --rm -v "$RUNNER_TEMP/macula-build:/b" -w /b "$MACULA_CI_IMAGE" rebar3 compile
+          test -d "$RUNNER_TEMP/macula-build/_build/default/lib/macula/ebin"
+      - name: Both ways, pq_hybrid and pq_pure
+        shell: bash
+        run: |
+          export MACULA_BUILD="$RUNNER_TEMP/macula-build"
+          {
+            echo "macula-php $GITHUB_SHA, macula $MACULA_VERSION from hex, $MACULA_CI_IMAGE"
+            scripts/interop/groups.sh pq_hybrid
+            scripts/interop/groups.sh pq_pure
+          } 2>&1 | tee sealed-interop.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sealed-interop-log
+          path: sealed-interop.log

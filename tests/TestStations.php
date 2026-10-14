@@ -17,6 +17,7 @@ final class TestStations
     public readonly string $realmName;
     public readonly string $realmKey;
     public readonly string $org;
+    public readonly string $orgKeyId;
 
     /** @param resource $process @param array<int, resource> $pipes */
     private function __construct(private $process, private array $pipes)
@@ -27,6 +28,7 @@ final class TestStations
         $this->realmName = $info['realm_name'];
         $this->realmKey = $info['realm_key'];
         $this->org = $info['org'];
+        $this->orgKeyId = $info['org_key_id'];
     }
 
     public static function start(): self
@@ -62,6 +64,22 @@ final class TestStations
         if (!str_starts_with($reply, 'admitted')) {
             throw new \RuntimeException($reply);
         }
+    }
+
+    /**
+     * The org's UCAN for the node: a grant over
+     * `mri:org:<realm_name>/<org>` carrying `can` "group_keys", living an
+     * hour. It is the grant a group subscription presents on every key pull,
+     * and the only thing that admits a caller to a stand-in distributor's
+     * `realm_member_required` policy.
+     */
+    public function grant(string $nodeId): string
+    {
+        $reply = $this->ask("grant {$nodeId}");
+        if (!str_starts_with($reply, 'grant ')) {
+            throw new \RuntimeException($reply);
+        }
+        return substr($reply, strlen('grant '));
     }
 
     /** How many streams the stations relay now. */

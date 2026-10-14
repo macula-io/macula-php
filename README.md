@@ -20,20 +20,21 @@
 
 ---
 
-> **Wire 1.0, 0.9.0-rc.2 (a pre-release):** built on macula-go v0.27.0-rc.1, it
-> speaks wire 1.0 (macula 15) and nothing older, so it reaches only a wire 1.0
-> station. A pre-release is not what a default install resolves, so 0.8.2 stays
-> `latest` for the live fleet; install the candidate with
+> **Wire 1.0, 0.9.0-rc.2 (a pre-release):** it speaks wire 1.0 (macula 15) and
+> nothing older, so it reaches only a wire 1.0 station. A pre-release is not
+> what a default install resolves, so 0.8.2 stays `latest` for the live fleet;
+> install the candidate with
 > `composer require macula-io/macula-php:0.9.0-rc.2`.
 >
-> **Status, 2026-10-05:** over macula-go's **released** libmacula (the tag in
+> **Status, 2026-10-14:** over macula-go's **released** libmacula (the tag in
 > `abi/MACULA_GO_REF`, ABI 1), so on wire 1.0 (macula 15): handshake v5 bound to
 > the TLS session, end-to-end sealed calls and streams to a provider that
 > advertises a KEM key (`Confidentiality`), post-quantum identities (ML-DSA-87,
 > as the ML-DSA-87 + RSA-PSS-4096 composite in pq_hybrid, the fleet's profile)
 > and hybrid ML-KEM key exchange on SecP384r1MLKEM1024. Calls and streams by
 > direct dial, serving (under an org or in a node's own namespace),
-> publish/subscribe, the DHT and node-served content are tested against in-process stations on every
+> publish/subscribe, sealed groups (see [Sealed groups](#sealed-groups)), the
+> DHT and node-served content are tested against in-process stations on every
 > `composer test`, as are UCAN-gated calls and serving and the seal report.
 > Releases before 0.7.0 bind macula-go v0.12.0 and cannot call a provider
 > that advertises a KEM key.
@@ -141,6 +142,7 @@ compatibility layer.
 | A node's own namespace (`ownProcedure`) | ✅ | ✅ | `~<node_id>/<name>`: served and called with no org and no realm key; the node's signature authorizes it |
 | Streams (`openStream`, `serveStream`) | ✅ | ✅ | Server, client and bidi; a QUIC stream per session, released on every path |
 | Publish/subscribe | ✅ | ✅ | Signed publications, delivered once across links |
+| Sealed groups (`Group`, `publishGroup`, `subscribeGroup`) | ✅ | — | A topic under the group's prefix, sealed under the epoch the org's distributor hands back over a call its gate admits; a refusal arrives as `GroupError` carrying macula's own reason, never as a silent downgrade. The distributor itself is macula's (`macula_group_keys`), not served from here |
 | DHT (`findRecord`, `findRecords`, `findRecordsByType`, `putRecord`) | ✅ | — | Records verified before they are handed on |
 | Node-served content (`shareContent`, `unshareContent`, `getContent`) | ✅ | ✅ | Shared on the node's own `~<node_id>/content_v1` and announced; a fetch checks the block, the manifest and every chunk against the content id, bounded, with no realm key; `NotSharedError` / `ContentUnavailableError` |
 
@@ -159,6 +161,36 @@ and frees it either way.
 Because the call a PHP process makes blocks until it is answered, a process
 cannot call a procedure it serves itself: run the provider as a worker of its
 own, as [`examples/02_serve.php`](examples/02_serve.php) does.
+
+## Sealed groups
+
+A group is a topic prefix whose second `/`-segment names an org. The org's
+distributor holds the group's epoch keys and hands one to a member over a
+sealed call the org's `group_keys` grant authorizes, so a publish and a
+subscription under the prefix reach that org's members alone:
+
+```php
+use Macula\Group;
+use Macula\GroupError;
+
+$group = new Group("{$realmName}/{$org}/chat", ucan: $grantFromTheOrg);
+$sub = $pool->subscribeGroup($realm, "{$group->prefix}/said_v1", $group);
+$pool->publishGroup($realm, "{$group->prefix}/said_v1", ['text' => 'hi'], $group);
+```
+
+Both join the group first, one sealed call to the distributor, and a refusal
+is thrown as a `GroupError` with nothing sent. Every event a group
+subscription delivers arrives opened, `Event::$sealKeyId` naming the epoch it
+was sealed with; an event this node cannot open arrives once with
+`Event::$unopened` naming why and `Event::$payload` null. Reasons are
+macula's own closed set: `not_a_member`, `membership_unknown`, `unknown_epoch`,
+`epoch_expired` or `no_distributor` when a join is refused, `no_group` or
+`tag_invalid` on an event, and `group_held` when a clear publish is attempted
+under a prefix this node holds.
+
+This SDK holds no epoch key and seals nothing of its own: `Group` is a prefix,
+a grant and optionally the distributor's node id, and every seal, open and key
+pull happens in libmacula.
 
 ## Payloads
 
@@ -216,6 +248,16 @@ granted and a delegated one, the seal report of a call and a stream, pubsub, nod
 A provider a test calls runs in a PHP process of its own
 (`tests/fixtures/provider.php`). No network is needed. The suite needs PHP ≥
 8.3 (PHPUnit 12's floor); the library itself runs on PHP ≥ 8.1.
+
+`tests/GroupTest.php` stands an org's distributor in for the groups half: the
+group-key vectors the Erlang implementation checks cross the ABI byte for
+byte, and each refusal macula names arrives here as the reason it is named.
+The live half is `scripts/interop/groups.sh`, which runs macula's own
+distributor in Erlang and puts a PHP member and an Erlang member under one
+group: each opens the other's sealed event under one epoch, a removed node is
+refused `not_a_member`, and a node presenting a grant minted for another node
+is refused. `.github/workflows/sealed-interop.yml` runs it on every pull
+request and main push, in both profiles.
 
 `tests/LampsCompositeTest.php` holds pq_hybrid, the LAMPS composite
 id-MLDSA87-RSA4096-PSS-SHA512, to `draft-ietf-lamps-pq-composite-sigs`' own

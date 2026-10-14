@@ -6,6 +6,39 @@ to v0.3.4 are described in their annotated git tag messages.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+On macula-go v0.27.0-rc.3's libmacula (was v0.27.0-rc.1), which carries the
+group calls this binding declares.
+
+### Added
+
+- **Sealed groups, the member side** (`Group`, `publishGroup`,
+  `subscribeGroup`). A group is a topic prefix whose second `/`-segment names
+  an org; the org's distributor holds the group's epoch keys. A publish and a
+  subscription under the prefix both join the group first, one sealed call to
+  the distributor carrying the org's `group_keys` grant, and then seal under,
+  or open under, the epoch it hands back. A refusal is a `GroupError` holding
+  macula's own reason: `not_a_member`, `membership_unknown`, `unknown_epoch`,
+  `epoch_expired`, or `no_distributor` when no distributor answered or the one
+  that did failed in a way it did not name; an event that cannot be opened
+  arrives once with `Event::$unopened` naming `no_group` or `tag_invalid`. A
+  group held is not a downgrade: a clear publish under a prefix this node
+  holds is refused `group_held` and nothing is sent. `Event` gained `sealed`,
+  `sealKeyId` and `unopened`. This binding holds no epoch key and seals
+  nothing of its own; `Group` carries a prefix, a grant and optionally the
+  distributor's node id. #9.
+- `scripts/interop/groups.sh` and `.github/workflows/sealed-interop.yml`: a
+  PHP member and an Erlang member under one org's group, each opening the
+  other's sealed event under one epoch, a removed node refused `not_a_member`
+  and a node presenting another node's grant refused, on every pull request
+  and main push, in both profiles.
+
+### Changed
+
+- The native library is built from macula-go v0.27.0-rc.3, and the in-process
+  test stations are that tag's.
+
 ## [0.9.0-rc.2] - 2026-10-13
 
 On macula-go v0.27.0-rc.1's libmacula, as 0.9.0-rc.1. A pre-release: a default
