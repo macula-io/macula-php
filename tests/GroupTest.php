@@ -429,11 +429,13 @@ final class GroupTest extends TestCase
 
         ob_start();
         var_dump($group);
+        var_dump(['group' => $group]);
+        debug_zval_dump($group);
         $dumped = (string) ob_get_clean();
 
         foreach ([
             'print_r' => print_r($group, true),
-            'var_dump' => $dumped,
+            'var_dump, plain and nested, and debug_zval_dump' => $dumped,
             'json_encode' => json_encode($group, JSON_THROW_ON_ERROR),
             'a json_encode with the group nested' => json_encode(['group' => $group], JSON_THROW_ON_ERROR),
         ] as $path => $printed) {
@@ -451,11 +453,28 @@ final class GroupTest extends TestCase
         self::assertNull($without->__debugInfo()['ucan'], 'and a group with none says so rather than redacting');
         self::assertStringContainsString('"ucan":null', json_encode($without, JSON_THROW_ON_ERROR));
 
-        // What PHP does not let a class close: an (array) cast and var_export()
-        // ignore __debugInfo, and serialize() writes what a caller asked to keep.
-        // Asserted so the class doc's boundary is checked, not believed.
-        self::assertStringContainsString($grant, print_r((array) $group, true), 'an (array) cast exposes it');
-        self::assertStringContainsString($grant, var_export($group, true), 'var_export() exposes it');
-        self::assertStringContainsString($grant, serialize($group), 'serialize() keeps it');
+        // The redaction is on the way to a log, not the way to the wire: the
+        // grant still reaches publishGroup and subscribeGroup through options(),
+        // which is the whole point of holding it. Without this, routing options()
+        // through __debugInfo would stay green here until a live run.
+        self::assertSame($grant, $group->options()['ucan'], 'the grant still reaches the wire');
+        self::assertArrayNotHasKey('ucan', $without->options(), 'and a group with none carries none');
+
+        // What this class cannot redact: anything that reads the property table.
+        // These paths are not redacted by Group — they are not redacted at all —
+        // and they are asserted so the class doc's boundary is checked rather
+        // than believed. Two of them are what a failure prints: PHPUnit's own
+        // exporter reports a failed comparison through (array), and Symfony's
+        // dump() starts from one too.
+        self::assertStringContainsString($grant, print_r((array) $group, true),
+            'an (array) cast is not redacted by this class');
+        self::assertStringContainsString($grant, print_r(get_object_vars($group), true),
+            'get_object_vars is not redacted by this class');
+        self::assertStringContainsString($grant, var_export($group, true),
+            'var_export is not redacted by this class');
+        // Not a PHP limit but this class's choice: __serialize() could redact it
+        // and does not, so a group persisted to a queue or a cache still works
+        // when it comes back.
+        self::assertStringContainsString($grant, serialize($group), 'serialize() keeps it, by choice');
     }
 }

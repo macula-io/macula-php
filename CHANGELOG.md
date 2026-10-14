@@ -19,10 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   it, as macula-py's `Group` and macula-dotnet's `UcanPresentation` already
   do. `options()` is untouched: what goes to `publishGroup` and
   `subscribeGroup` still carries the grant, which is the whole point of it.
-  Three ways of reading an object are outside what a PHP class can redact,
-  and the class doc names them rather than leaving them to be assumed away:
-  an `(array)` cast and `var_export()` expose every property including the
-  private ones, and `serialize()` writes what a caller asked to keep.
+  What is *not* redacted is what a PHP class has no hook for — anything that
+  reads the property table: an `(array)` cast, `get_object_vars`, a `foreach`,
+  an IDE step debugger, Symfony's `dump()`, and PHPUnit's own exporter when a
+  comparison on a Group fails, which prints the grant into the CI log. The
+  class doc lists them so they are chosen around rather than assumed away.
+  `serialize()` also writes the grant, which is this class's choice and not a
+  limit, since `__serialize()` exists: a persisted group is meant to work when
+  it comes back.
 
 ## [0.9.0-rc.3] - 2026-10-14
 

@@ -19,16 +19,28 @@ namespace Macula;
  * the distributor over a sealed call the grant authorizes) and then seal the
  * publish under, or open the subscription's events under, that epoch.
  *
- * The `ucan` is a bearer credential, so what a debugger or a log shows names
- * it as present rather than printing it, as macula-py's Group and
- * macula-dotnet's UcanPresentation do. `print_r`, `var_dump` and
- * `json_encode`, the last including a Group nested in the context a logger
- * encodes, are what this class can redact. Three ways of reading an object are
- * outside any class's control and therefore show it: an `(array)` cast and
- * `var_export()` ignore __debugInfo and expose every property including the
- * private ones, and `serialize()` writes them for a caller who asked for
- * persistence, which is a request to keep the group working rather than to log
- * it. Do not reach for those three when what is wanted is something to print.
+ * The `ucan` is a bearer credential, so what this class can redact, it redacts:
+ * `print_r`, `var_dump` (the object, and anything holding one), `debug_zval_dump`,
+ * an exception trace that prints arguments, and `json_encode`, the last
+ * including a Group nested in the context a logger encodes — Monolog's
+ * normalizer, for instance, takes jsonSerialize. macula-py's Group and
+ * macula-dotnet's UcanPresentation do the same for the same reason.
+ *
+ * What is NOT redacted, and cannot be, because a PHP class has no hook for
+ * anything that reads the property table: `get_object_vars`, a `foreach` over
+ * the object, an `(array)` cast, an IDE step debugger (DBGp reads the property
+ * table), and Symfony's VarDumper, whose `dump()` and `dd()` start from an
+ * `(array)` cast and add __debugInfo's keys alongside the real ones rather than
+ * instead of them. Two of those matter in practice: PHPUnit's own exporter
+ * reports a failed `assertEquals`/`assertSame` on a Group through `(array)`, so
+ * a failing test prints the grant into the CI log, and `dump()` prints it to
+ * the page or the console. Do not reach for those when what is wanted is
+ * something to print.
+ *
+ * `serialize()` also writes it, which is a choice rather than a limit, since
+ * __serialize() exists: a Group persisted to a queue or a cache is meant to
+ * still work when it comes back, and that is worth more than hiding the grant
+ * from the caller who asked to store it.
  */
 final class Group implements \JsonSerializable
 {
@@ -70,13 +82,17 @@ final class Group implements \JsonSerializable
     }
 
     /**
-     * What `print_r`, `var_dump` and every debugger show: the group, with its
-     * grant named as present rather than printed. A grant is a bearer
-     * credential a distributor accepts, so a debugging aid that showed it would
-     * hand out the group's keys to whoever reads the output.
+     * What `print_r`, `var_dump`, `debug_zval_dump`, an exception trace and
+     * every debugger that honours it show: the group, with its grant named as
+     * present rather than printed. A grant is a bearer credential a distributor
+     * accepts, so a debugging aid that showed it would hand out the group's keys
+     * to whoever reads the output.
      *
-     * Note what this does and does not reach: an `(array)` cast, `var_export()`
-     * and `serialize()` are outside it, as the class doc says.
+     * This reaches the paths that honour __debugInfo. It does not reach the ones
+     * that read the property table — an `(array)` cast, `get_object_vars`, a
+     * `foreach`, an IDE step debugger, Symfony's VarDumper, and PHPUnit's own
+     * exporter when a comparison fails. The class doc lists them; none is a
+     * reason to print a Group.
      *
      * @return array{prefix: string, ucan: string|null, distributor: string|null}
      */
