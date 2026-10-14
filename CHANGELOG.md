@@ -6,10 +6,11 @@ to v0.3.4 are described in their annotated git tag messages.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.9.0-rc.3] - 2026-10-14
 
 On macula-go v0.27.0-rc.3's libmacula (was v0.27.0-rc.1), which carries the
-group calls this binding declares.
+group calls this binding declares. A pre-release: a default
+`composer require macula-io/macula-php` keeps resolving 0.8.2.
 
 ### Added
 
