@@ -162,9 +162,16 @@ final class Binding
      * it is refused here at load. Every wire 1.x peer shares the frozen core,
      * so another major is refused and another minor is taken (cabi/CONTRACT.md,
      * "Version"). The library owns the string.
+     *
+     * $wire is nullable because the declaration is const: FFI hands a NULL
+     * from macula_wire_version() over as null, and a typed parameter would
+     * turn that into a TypeError that says nothing about the library.
      */
-    public static function checkWireVersion(string $wire, string $path): void
+    public static function checkWireVersion(?string $wire, string $path): void
     {
+        if ($wire === null) {
+            throw new MaculaException("libmacula at {$path} returned no wire version");
+        }
         if (strtok($wire, '.') !== self::WIRE_MAJOR) {
             throw new MaculaException("libmacula at {$path} speaks wire {$wire}; macula-php needs wire "
                 . self::WIRE_MAJOR . '.x');

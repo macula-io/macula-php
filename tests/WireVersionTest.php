@@ -60,6 +60,19 @@ final class WireVersionTest extends TestCase
         self::assertSame(Binding::WIRE_MAJOR, strtok($wire, '.'), 'the fetched libmacula is not the intended wire');
     }
 
+    /**
+     * macula_wire_version() is declared const, so FFI hands a NULL over as
+     * null and not as a pointer to nothing. The guard is typed, so it has to
+     * refuse that itself: a TypeError out of it would say nothing about the
+     * library that answered.
+     */
+    public function testAWireTheLibraryDoesNotReportIsRefusedInThisPackagesWords(): void
+    {
+        $this->expectException(MaculaException::class);
+        $this->expectExceptionMessageMatches('/returned no wire version/');
+        Binding::checkWireVersion(null, '/nonexistent/libmacula.so');
+    }
+
     public function testThisWireAndAnotherMinorAreAccepted(): void
     {
         Binding::checkWireVersion('1.0', '/nonexistent');
