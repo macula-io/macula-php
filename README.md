@@ -129,8 +129,9 @@ compatibility layer.
   or `ServedStream::handle`; `putDirect`/`getDirect` are `shareContent`/
   `getContent`.
 - `Value` is gone: a payload is a plain PHP value (see [Payloads](#payloads)).
-- `Ucan` is gone until macula 12's UCANs are (see [Not yet
-  implemented](#not-yet-implemented)).
+- `Ucan` is back: removed at 0.5.0, and returned at 0.8.0 as the wire's UCANs,
+  minted with `NodeKey::ucan` and named in a chain with `Ucan::proofId` (see
+  [What's implemented](#whats-implemented)).
 - Serving an org procedure needs the realm's org directory and the org's
   delegation to your node in the DHT: a realm admits orgs through a human.
 
