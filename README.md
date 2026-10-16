@@ -20,11 +20,11 @@
 
 ---
 
-> **Wire 1.0, 0.9.0-rc.3 (a pre-release):** it speaks wire 1.0 (macula 15) and
+> **Wire 1.0, 0.9.0-rc.4 (a pre-release):** it speaks wire 1.0 (macula 15) and
 > nothing older, so it reaches only a wire 1.0 station. A pre-release is not
 > what a default install resolves, so 0.8.2 stays `latest` for the live fleet;
 > install the candidate with
-> `composer require macula-io/macula-php:0.9.0-rc.3`.
+> `composer require macula-io/macula-php:0.9.0-rc.4`.
 >
 > **Status, 2026-10-14:** over macula-go's **released** libmacula (the tag in
 > `abi/MACULA_GO_REF`, ABI 1), so on wire 1.0 (macula 15): handshake v5 bound to
@@ -36,6 +36,11 @@
 > publish/subscribe, sealed groups (see [Sealed groups](#sealed-groups)), the
 > DHT and node-served content are tested against in-process stations on every
 > `composer test`, as are UCAN-gated calls and serving and the seal report.
+> `Group` no longer prints the org's grant when it is dumped or encoded
+> (macula-php#11): the grant is a bearer credential a distributor accepts, and
+> `__debugInfo()` and `JsonSerializable` name it as present rather than
+> printing it, which keeps it out of `print_r`, `var_dump` and a logger's json
+> context. `options()` still carries it, which is what a publish needs.
 > Releases before 0.7.0 bind macula-go v0.12.0 and cannot call a provider
 > that advertises a KEM key.
 
