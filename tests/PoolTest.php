@@ -24,7 +24,7 @@ use Macula\Wire;
 use PHPUnit\Framework\TestCase;
 
 /**
- * The PHP API over libmacula.so, against two in-process macula 12 stations
+ * The PHP API over libmacula.so, against two in-process wire 1.0 stations
  * (TestStations): keys, calls by direct dial and their errors, providers,
  * streams (and that every stream is released), pubsub, content and the DHT.
  * A provider a test calls runs in a process of its own (ProviderProcess).

@@ -30,7 +30,7 @@ final class Binding
 
     private const CDEF = <<<'CDEF'
         int32_t macula_abi_version(void);
-        char *macula_wire_version(void);
+        const char *macula_wire_version(void);
         void macula_free_string(char *s);
         void macula_free_bytes(uint8_t *b);
 
@@ -145,7 +145,10 @@ final class Binding
                 throw new MaculaException("libmacula at {$path} is ABI {$version}; macula-php needs ABI "
                     . self::ABI_VERSION);
             }
-            self::checkWireVersion(\FFI::string($ffi->macula_wire_version()), $path);
+            // Declared const, as abi/macula.h has it, so FFI hands it over as a
+            // PHP string and not a pointer: nothing here can free a string the
+            // library owns.
+            self::checkWireVersion($ffi->macula_wire_version(), $path);
             self::$ffi = $ffi;
         }
         return self::$ffi;

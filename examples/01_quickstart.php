@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-// Connects to a macula 12 station and calls mcl-echo/echo, which runs on
+// Connects to a wire 1.0 station and calls mcl-echo/echo, which runs on
 // another station: the pool finds its trusted advertisement in the DHT and
 // dials the station it serves from.
 // Run: php examples/01_quickstart.php (with the environment mesh.php reads).

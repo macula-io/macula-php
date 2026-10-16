@@ -12,7 +12,7 @@ use Macula\Seed;
 use PHPUnit\Framework\TestCase;
 
 /**
- * A live run against one macula 12 station: the pool connects pinned with a
+ * A live run against one wire 1.0 station: the pool connects pinned with a
  * key generated for the run and never saved, reads the DHT, calls
  * mcl-echo/echo by direct dial, and hears its own publication. Runs only in
  * the live suite (`composer test:live`), and needs every one of

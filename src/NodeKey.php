@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Macula;
 
 /**
- * A node's identity key, as macula 12 has it: ML-DSA-87 (pq_pure) or the LAMPS
+ * A node's identity key, as wire 1.0 has it: ML-DSA-87 (pq_pure) or the LAMPS
  * composite ML-DSA-87 + RSA-4096-PSS (pq_hybrid, the fleet's profile), whose
  * node_id solves the admission puzzle. Stored in a key file readable by its
  * owner only. The native key is freed with the object, or by free().

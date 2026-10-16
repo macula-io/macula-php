@@ -8,7 +8,7 @@
     <!--
         offline (the default, so a bare `composer test` never touches the
         network): tests/PoolTest.php against cabi/cmd/teststation, two
-        in-process macula 12 stations (`composer build` builds it). Runs in
+        in-process wire 1.0 stations (`composer build` builds it). Runs in
         CI on every push.
 
         live: tests/live, against one real station, run explicitly with

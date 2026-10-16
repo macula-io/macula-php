@@ -56,7 +56,7 @@ final class WireVersionTest extends TestCase
 
     public function testTheLoadedLibrarySpeaksThisBindingsWire(): void
     {
-        $wire = \FFI::string(Binding::ffi()->macula_wire_version());
+        $wire = Binding::ffi()->macula_wire_version();
         self::assertSame(Binding::WIRE_MAJOR, strtok($wire, '.'), 'the fetched libmacula is not the intended wire');
     }
 

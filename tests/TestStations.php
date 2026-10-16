@@ -6,8 +6,8 @@ namespace Macula\Tests;
 
 /**
  * Runs macula-go's teststation at the tag in abi/MACULA_GO_REF (built to
- * build/teststation by `composer build`) for a test class: two in-process macula 12 stations sharing a DHT
- * and a test realm, driven over the helper's stdin.
+ * build/teststation by `composer build`) for a test class: two in-process wire
+ * 1.0 stations sharing a DHT and a test realm, driven over the helper's stdin.
  */
 final class TestStations
 {
