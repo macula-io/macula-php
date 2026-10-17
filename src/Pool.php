@@ -210,7 +210,10 @@ final class Pool
     }
 
     /** Subscribes to topic in realm. Each verified event is heard once, however
-     * many links deliver it, and waits until Subscription::next takes it. */
+     * many links deliver it, and waits until Subscription::next takes it.
+     * Returns once a station has accepted the subscription; a refusal, or no
+     * answer within 30 seconds, is a MaculaException of kind "refused", and no
+     * link up one of kind "failed". */
     public function subscribe(string $realm, string $topic, BytesOutput $bytes = BytesOutput::Hex): Subscription
     {
         $h = $this->live();
@@ -292,7 +295,9 @@ final class Pool
      * refused. Under Confidentiality::Required a call in the clear is refused;
      * a pool connected with kemAdvertise names its KEM key so callers seal.
      * Under a ServePolicy only callers presenting a UCAN it accepts reach the
-     * handler; libmacula refuses the rest before they do.
+     * handler; libmacula refuses the rest before they do. Returns once a
+     * station has accepted the advertisement; a refusal, or no answer within
+     * 30 seconds, is a MaculaException of kind "refused".
      */
     public function serve(
         string $realm,
@@ -309,7 +314,8 @@ final class Pool
     }
 
     /** Serves procedure in realm as a stream of mode. Its sessions wait until
-     * ServedStream::next or ServedStream::handle takes them. */
+     * ServedStream::next or ServedStream::handle takes them. Like serve, it
+     * returns once a station has accepted the advertisement. */
     public function serveStream(
         string $realm,
         string $procedure,

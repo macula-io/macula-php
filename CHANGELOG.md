@@ -6,6 +6,29 @@ to v0.3.4 are described in their annotated git tag messages.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0-rc.5] - 2026-10-17
+
+### Security
+
+- **A pool's STATUS statements carry a strictly increasing `issued_at` per
+  binding** (macula-architecture#22), through libmacula from macula-go
+  v0.27.0-rc.7. Before, `issued_at` was the wall clock, so after a backward
+  clock step of 15 minutes or more a macula 15.5 or later station dropped the
+  pool's honest statements as stale, and a step of about 45 minutes cost the
+  link. A reissue is now stamped one past the last while that stays within
+  five minutes of the clock, and at the clock past that, as macula 15.6 does.
+
+### Changed
+
+- libmacula is from macula-go v0.27.0-rc.7 (was v0.27.0-rc.3), and
+  `abi/macula.h` is its header.
+- **`Pool::serve`, `Pool::serveStream` and `Pool::subscribe` return once a
+  station has accepted the registration** (macula#12, macula-go
+  v0.27.0-rc.4), so each can now take up to 30 seconds. A station's refusal,
+  or no answer in that time, is a `MaculaException` of kind `refused`.
+  `Pool::subscribe` with no link up is one of kind `failed`, where it used to
+  return a subscription that attached on redial.
+
 ## [0.9.0-rc.4] - 2026-10-14
 
 ### Changed
