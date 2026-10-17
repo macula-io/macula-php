@@ -6,6 +6,14 @@ to v0.3.4 are described in their annotated git tag messages.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-10-19
+
+The wire 1.0 release, for the fleet's flag day (19 Oct 2026, 18:03 UTC): from
+then on every live station speaks wire 1.0 (macula 15) and nothing older, and
+0.8.2 can no longer connect. libmacula is macula-go v0.27.0, whose code is
+v0.27.0-rc.8's; this package's code is 0.9.0-rc.6's. The entries for rc.1 to
+rc.6 below are what changed since 0.8.2.
+
 ## [0.9.0-rc.6] - 2026-10-17
 
 ### Added
