@@ -226,8 +226,16 @@ final class Binding
             'confidentiality' => new ConfidentialityError((string) ($e['reason'] ?? ''), $e['named'] ?? null,
                 $e['found'] ?? null, $message),
             'group' => new GroupError((string) ($e['reason'] ?? ''), $e['prefix'] ?? null, $message),
+            'refused' => new RefusedError(self::text($e, 'reason'), self::text($e, 'registration'),
+                self::text($e, 'station'), $message),
             default => new MaculaException($message, $e['kind']),
         };
+    }
+
+    /** A field of the library's JSON error that is a string, else null. */
+    private static function text(array $e, string $name): ?string
+    {
+        return is_string($e[$name] ?? null) ? $e[$name] : null;
     }
 
     /** A C string the library returned, as PHP text, freed. */

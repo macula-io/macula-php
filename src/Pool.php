@@ -212,8 +212,9 @@ final class Pool
     /** Subscribes to topic in realm. Each verified event is heard once, however
      * many links deliver it, and waits until Subscription::next takes it.
      * Returns once a station has accepted the subscription; a refusal, or no
-     * answer within 30 seconds, is a MaculaException of kind "refused", and no
-     * link up one of kind "failed". */
+     * answer within 30 seconds, is a RefusedError naming the station's reason,
+     * the registration and the station, and no link up a MaculaException of
+     * kind "failed". */
     public function subscribe(string $realm, string $topic, BytesOutput $bytes = BytesOutput::Hex): Subscription
     {
         $h = $this->live();
@@ -297,7 +298,8 @@ final class Pool
      * Under a ServePolicy only callers presenting a UCAN it accepts reach the
      * handler; libmacula refuses the rest before they do. Returns once a
      * station has accepted the advertisement; a refusal, or no answer within
-     * 30 seconds, is a MaculaException of kind "refused".
+     * 30 seconds, is a RefusedError naming the station's reason, the
+     * registration and the station.
      */
     public function serve(
         string $realm,

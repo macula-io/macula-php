@@ -6,6 +6,26 @@ to v0.3.4 are described in their annotated git tag messages.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0-rc.6] - 2026-10-17
+
+### Added
+
+- **`RefusedError`: a station's refusal of a serve or subscribe names its
+  verdict**: `reason` (`too_many_providers`, `advertiser_quota`,
+  `name_too_long`, `record_refused`, `not_authorized`, `too_many_realms`,
+  `refused`, or `RefusedError::REASON_UNACKNOWLEDGED` when no station
+  answered within 30 seconds), `registration` (`advertise` or `subscribe`)
+  and `station`, its node_id as hex, as libmacula gives them since macula-go
+  v0.27.0-rc.4 (macula#12). It is a `MaculaException` of kind `refused`, so
+  code that matched the kind still does; any other refusal has the three
+  null.
+
+### Changed
+
+- libmacula from macula-go v0.27.0-rc.8 (was v0.27.0-rc.7): a content fetch
+  gives a sharer 2 s for its root answer (macula-go#26). `abi/macula.h` is
+  its header.
+
 ## [0.9.0-rc.5] - 2026-10-17
 
 ### Security

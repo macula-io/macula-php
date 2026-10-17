@@ -20,11 +20,11 @@
 
 ---
 
-> **Wire 1.0, 0.9.0-rc.5 (a pre-release):** it speaks wire 1.0 (macula 15) and
+> **Wire 1.0, 0.9.0-rc.6 (a pre-release):** it speaks wire 1.0 (macula 15) and
 > nothing older, so it reaches only a wire 1.0 station. A pre-release is not
 > what a default install resolves, so 0.8.2 stays `latest` for the live fleet;
 > install the candidate with
-> `composer require macula-io/macula-php:0.9.0-rc.5`.
+> `composer require macula-io/macula-php:0.9.0-rc.6`.
 >
 > **Status, 2026-10-14:** over macula-go's **released** libmacula (the tag in
 > `abi/MACULA_GO_REF`, ABI 1), so on wire 1.0 (macula 15): handshake v5 bound to
@@ -141,7 +141,7 @@ compatibility layer.
 |---|---|---|---|
 | Node keys (`NodeKey`) | ✅ | ✅ | `pq_hybrid` (the fleet's) or `pq_pure`; key files readable by the owner only; `sign` and `verify`, pq_hybrid checked against the LAMPS draft's own vector and cross-verified with macula 12.7.0 |
 | Pool of station links (`Pool::connect`) | ✅ | ✅ | Seeds pinned by node_id; realm keys pinned; links redialed with subscriptions and served procedures replayed |
-| Calls by direct dial (`call`, `providers`) | ✅ | ✅ | Errors arrive as `ProviderError` / `RelayError`; every other failure is a `MaculaException` whose `kind` is the library's error kind |
+| Calls by direct dial (`call`, `providers`) | ✅ | ✅ | Errors arrive as `ProviderError` / `RelayError`; a station's refusal of a serve or subscribe is a `RefusedError` with its `reason`, `registration` and `station`; every other failure is a `MaculaException` whose `kind` is the library's error kind |
 | UCANs (`NodeKey::ucan`, `Ucan::proofId`, `ucan:`/`proofs:`, `ServePolicy`) | ✅ | ✅ | A token minted for the node that presents it, delegated by `prf`; a procedure served under `ServePolicy::ucanRequired` or `realmMemberRequired` reaches its handler only with a chain the policy accepts, refused otherwise as `ProviderError` `unauthorized` |
 | The seal report (`callReport`, `Stream::report`) | ✅ | — | Whether the exchange behind a result was sealed, to which provider and key |
 | End-to-end sealing (`confidential:`, `kemAdvertise:`) | ✅ | ✅ | A call or stream is sealed whenever the provider's advertisement names a KEM key; `Confidentiality::Required` fails with `ConfidentialityError` rather than go in the clear; a served `Request` says whether it came `sealed` |
