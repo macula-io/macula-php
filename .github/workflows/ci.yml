@@ -48,3 +48,13 @@ jobs:
       - name: rebar3 as lint lint
         working-directory: scripts/cross-verify-macula
         run: rebar3 as lint lint
+
+  # Every PHP block README.md publishes parses and type-checks against this
+  # package, and a doc change runs this (macula-codebase-checks#8). The pin is a
+  # full commit SHA. Packagist publishes by the tag alone, so there is no publish
+  # job here to wait on it.
+  docs:
+    name: docs (PHP snippets)
+    permissions:
+      contents: read
+    uses: macula-io/macula-ci-images/.github/workflows/doc-snippets-php.yml@d25a36c1b6ba7b8e72db17873aa7c2c7793eba70

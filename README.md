@@ -216,7 +216,7 @@ bytes, and come back as hex.
 
 ## Architecture
 
-```
+```text
 src/ (PHP API)  ──  src/Binding.php (ext-ffi)  ──  libmacula (macula-go's C ABI)  ──  macula-go pool
 ```
 
