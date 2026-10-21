@@ -1,8 +1,13 @@
 name: CI
 
 on:
+  # A tag IS the release: a Composer package publishes by being tagged, so the
+  # suite, and the dependency scan below, run on the tagged commit too. What
+  # that buys is a detection, not a refusal: Packagist serves the tag the
+  # moment it is pushed. The gate is the same scan on main before the tag.
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
 
 jobs:
@@ -64,3 +69,22 @@ jobs:
     permissions:
       contents: read
     uses: macula-io/macula-ci-images/.github/workflows/doc-snippets-php.yml@d25a36c1b6ba7b8e72db17873aa7c2c7793eba70
+
+  # A dependency with a published advisory fails the build
+  # (macula-codebase-checks#11). This repository commits no lock, so the one
+  # `composer install` writes is what is scanned, require-dev included: a
+  # developer tool runs inside this job with the repository's credentials.
+  #
+  # WHERE THE GATE ACTUALLY IS: Packagist serves a tag the moment it is pushed,
+  # so nothing here can refuse the release. The gate is this scan on main
+  # before the tag is cut. The push trigger names tags so the scan runs on the
+  # tagged commit too, and a red run there is a detection to act on, not a
+  # refusal. Do not describe it as one.
+  advisories:
+    name: Dependency advisories
+    permissions:
+      contents: read
+    uses: macula-io/macula-ci-images/.github/workflows/dependency-advisories.yml@dbc9533eb409c2118f45110613160060cc582f5d
+    with:
+      ecosystem: php
+      php-version: '8.3'
