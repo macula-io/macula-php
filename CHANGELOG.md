@@ -6,6 +6,17 @@ to v0.3.4 are described in their annotated git tag messages.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **The structural floor is gated in CI** (macula-io/macula-codebase-checks#9): `phpcs`
+  refuses a function that nests past three blocks (`phpcs.xml`, `Generic.Metrics.NestingLevel`
+  absoluteNestingLevel 3) and `phpmd` refuses one past cyclomatic complexity 9 (`phpmd.xml`,
+  `CyclomaticComplexity` reportLevel 9). Both thresholds are spelled out rather than left at
+  a tool default, both run as steps of the `php-test` job, and `composer lint` runs the same
+  two locally. The tree was already inside the floor: 56 files, no findings.
+
 ## [0.9.0] - 2026-10-19
 
 The wire 1.0 release, for the fleet's flag day (19 Oct 2026, 18:03 UTC): from

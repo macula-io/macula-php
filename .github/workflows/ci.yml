@@ -24,6 +24,12 @@ jobs:
             php -l "$f"
           done
       - run: composer install --no-interaction --prefer-dist
+      # The structural floor (macula-codebase-checks#9): phpcs holds the nesting
+      # cap, phpmd the cyclomatic cap, both spelled out in their config rather
+      # than left at a default. Named here one line each, the same two commands
+      # composer lint runs, so the sweep can see what gates this repository.
+      - run: vendor/bin/phpcs --standard=phpcs.xml
+      - run: vendor/bin/phpmd src,tests,examples text phpmd.xml
       # The released libmacula for abi/MACULA_GO_REF, checked against its
       # SHA256SUMS and attestation, and macula-go's teststation at that tag:
       # two in-process stations the offline suite runs against. tests/live

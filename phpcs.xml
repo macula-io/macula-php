@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<!-- The structural floor (macula-io/macula-codebase-checks#9): a function that
+     nests past three blocks fails the build. The threshold is spelled out
+     rather than left at the tool's default, which is 5 and can change under
+     us. No baseline, no inline disables: an ignore comment counts as a
+     finding. Cyclomatic complexity is phpmd's half of the floor, in
+     phpmd.xml. -->
+<ruleset name="macula-php structural floor">
+    <description>Nesting cap: absolute nesting level 3.</description>
+
+    <file>src</file>
+    <file>tests</file>
+    <file>examples</file>
+
+    <arg name="extensions" value="php"/>
+    <arg value="p"/>
+    <arg value="s"/>
+
+    <rule ref="Generic.Metrics.NestingLevel">
+        <properties>
+            <property name="absoluteNestingLevel" value="3"/>
+        </properties>
+    </rule>
+</ruleset>

@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<!-- The structural floor (macula-io/macula-codebase-checks#9): a function over
+     cyclomatic complexity 9 fails the build. The threshold is spelled out
+     rather than left at the tool's default, which is 10. No baseline, no
+     inline disables. Nesting is phpcs's half of the floor, in phpcs.xml. -->
+<ruleset name="macula-php structural floor"
+         xmlns="http://pmd.sf.net/ruleset/1.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sf.net/ruleset/1.0.0 http://pmd.sf.net/ruleset_xml_schema.xsd"
+         xsi:noNamespaceSchemaLocation="http://pmd.sf.net/ruleset_xml_schema.xsd">
+    <description>Cyclomatic complexity cap 9.</description>
+
+    <rule ref="rulesets/codesize.xml/CyclomaticComplexity">
+        <properties>
+            <property name="reportLevel" value="9"/>
+        </properties>
+    </rule>
+</ruleset>
