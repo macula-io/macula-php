@@ -9,6 +9,9 @@ on:
     branches: [main]
     tags: ['v*']
   pull_request:
+  # A branch tip has to be able to prove itself before it is reviewed: without
+  # this, the only way to get CI onto a branch is a pull request.
+  workflow_dispatch:
 
 jobs:
   php-test:
