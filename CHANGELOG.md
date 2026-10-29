@@ -8,15 +8,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- **The structural floor is gated in CI** (macula-io/macula-codebase-checks#9): `phpcs`
-  refuses a function that nests past three blocks (`phpcs.xml`, `Generic.Metrics.NestingLevel`
-  absoluteNestingLevel 3) and `phpmd` refuses one past cyclomatic complexity 9 (`phpmd.xml`,
-  `CyclomaticComplexity` reportLevel 9). Both thresholds are spelled out rather than left at
-  a tool default, both run as steps of the `php-test` job, and `composer lint` runs the same
-  two locally. The tree was already inside the floor: 56 files, no findings.
-
 ## [0.9.0] - 2026-10-19
 
 The wire 1.0 release, for the fleet's flag day (19 Oct 2026, 18:03 UTC): from
@@ -24,6 +15,28 @@ then on every live station speaks wire 1.0 (macula 15) and nothing older, and
 0.8.2 can no longer connect. libmacula is macula-go v0.27.0, whose code is
 v0.27.0-rc.8's; this package's code is 0.9.0-rc.6's. The entries for rc.1 to
 rc.6 below are what changed since 0.8.2.
+
+### Changed since this entry was written
+
+- **libmacula is built from macula-go v0.29.0**, the release that carries the A0 contract: a call a
+  keyed provider refuses `sealed_required` is resealed to the key in the refusal's signed tbs and
+  answered, instead of the caller failing on a stale keyless candidate (macula-go v0.29.0,
+  macula-php#17).
+- **The structural floor is gated in CI** (macula-io/macula-codebase-checks#9): `phpcs` refuses a
+  function that nests past three blocks (`phpcs.xml`, `Generic.Metrics.NestingLevel`
+  absoluteNestingLevel 3) and `phpmd` refuses one past cyclomatic complexity 9 (`phpmd.xml`,
+  `CyclomaticComplexity` reportLevel 9). Both thresholds are spelled out rather than left at a tool
+  default, both run as steps of the `php-test` job, and `composer lint` runs the same two locally.
+  The tree was already inside the floor: 56 files, no findings.
+
+### What this release does not change
+
+- Sealing is the default where the provider names a key, and only there: a call or stream is sealed
+  whenever the advertisement carries a KEM key, and a provider that names none is called in the
+  clear unless the caller asks for `Confidentiality::Required`. Refusing a clear call unless the
+  caller opts out is not in this release.
+- A procedure served with no policy is advertised open: `serve` and `serveStream` take the policy as
+  a nullable parameter, and omitting it serves any caller (macula-php#19).
 
 ## [0.9.0-rc.6] - 2026-10-17
 
