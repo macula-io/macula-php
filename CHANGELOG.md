@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-11
+
+The breaking release: libmacula is macula-go v0.31.0 and the C ABI is 2, and
+every served procedure names who may call it.
+
 ### Security (breaking)
 
 - **Every serve names a policy, and the C ABI is 2 (macula-php#21, #19; macula-go#57, #60).** A

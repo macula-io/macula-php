@@ -20,6 +20,15 @@
 
 ---
 
+> **0.11.0 (2026-11-11):** over libmacula from macula-go v0.31.0, whose C ABI
+> is 2. A served procedure now names who may call it: `serve` and
+> `serveStream` take a required `ServePolicy`, `ServePolicy::open()` is the
+> line that serves anyone, and a serve that names no policy is refused before a
+> station hears of the procedure. The ABI moved to 2 to carry that, so a
+> library older than v0.31.0 is refused at load by name. Breaking: every
+> `serve` and `serveStream` call gains its policy argument. A default
+> `composer require macula-io/macula-php` resolves 0.11.0.
+>
 > **A0, 0.10.0 (2026-10-29):** over libmacula from macula-go v0.29.0. A call a
 > keyed provider refuses `sealed_required` is now resealed to the key that
 > refusal carries and answered, instead of failing on a stale keyless candidate.
