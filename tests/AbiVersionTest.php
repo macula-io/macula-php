@@ -32,6 +32,32 @@ final class AbiVersionTest extends TestCase
     }
 
     /**
+     * The guard itself, which no test could reach while it was a condition
+     * inside ffi(): removing it left every test passing. A library of another
+     * ABI is refused by the loaded version and the one needed, naming the path.
+     */
+    public function testAnotherAbiIsRefusedInThisPackagesWords(): void
+    {
+        $path = '/nonexistent/libmacula.so';
+        $other = Binding::ABI_VERSION - 1;
+        try {
+            Binding::checkAbiVersion($other, $path);
+            self::fail("an ABI {$other} library was accepted by an ABI " . Binding::ABI_VERSION . ' binding');
+        } catch (MaculaException $e) {
+            self::assertStringContainsString("libmacula at {$path} is ABI {$other}", $e->getMessage(),
+                'the refusal names neither the path nor the ABI the library has');
+            self::assertStringContainsString('macula-php needs ABI ' . Binding::ABI_VERSION, $e->getMessage(),
+                'the refusal does not name the ABI this binding is written for');
+        }
+    }
+
+    public function testThisAbiIsAccepted(): void
+    {
+        Binding::checkAbiVersion(Binding::ABI_VERSION, '/nonexistent/libmacula.so');
+        $this->addToAssertionCount(1);
+    }
+
+    /**
      * The ABI's own refusal, through the binding's own handle: options are
      * judged before the pool handle is looked up, so no pool and no station is
      * needed to see that a serve naming no policy is refused. The byte string

@@ -140,11 +140,7 @@ final class Binding
                     . ' point MACULA_LIBRARY_PATH at another library of this ABI and not older',
                     previous: $e);
             }
-            $version = $ffi->macula_abi_version();
-            if ($version !== self::ABI_VERSION) {
-                throw new MaculaException("libmacula at {$path} is ABI {$version}; macula-php needs ABI "
-                    . self::ABI_VERSION);
-            }
+            self::checkAbiVersion($ffi->macula_abi_version(), $path);
             // Declared const, as abi/macula.h has it, so FFI hands it over as a
             // PHP string and not a pointer: nothing here can free a string the
             // library owns.
@@ -152,6 +148,22 @@ final class Binding
             self::$ffi = $ffi;
         }
         return self::$ffi;
+    }
+
+    /**
+     * Refuses a library of another ABI than this binding is written for, in
+     * this package's words and naming the path. ABI 2 is the ABI whose serve
+     * options must name a policy (cabi/CONTRACT.md, "Serving and streams"), so
+     * an ABI 1 library under this binding would serve anyone in silence; the
+     * guard is a function of the version and the path so that the refusal can
+     * be read without a library of the wrong ABI to hand.
+     */
+    public static function checkAbiVersion(int $version, string $path): void
+    {
+        if ($version !== self::ABI_VERSION) {
+            throw new MaculaException("libmacula at {$path} is ABI {$version}; macula-php needs ABI "
+                . self::ABI_VERSION);
+        }
     }
 
     /**
