@@ -295,18 +295,21 @@ final class Pool
      * namespace (ownProcedure) needs neither, and another node's namespace is
      * refused. Under Confidentiality::Required a call in the clear is refused;
      * a pool connected with kemAdvertise names its KEM key so callers seal.
-     * Under a ServePolicy only callers presenting a UCAN it accepts reach the
-     * handler; libmacula refuses the rest before they do. Returns once a
-     * station has accepted the advertisement; a refusal, or no answer within
+     * Every serve names a policy: ServePolicy::open() serves anyone, and
+     * ucanRequired or realmMemberRequired admits only a caller whose UCAN
+     * chain the policy accepts, refused by libmacula before the handler sees
+     * it. A serve that names no policy is refused at the call, so advertising
+     * a procedure to the whole mesh is a statement in the source. Returns once
+     * a station has accepted the advertisement; a refusal, or no answer within
      * 30 seconds, is a RefusedError naming the station's reason, the
      * registration and the station.
      */
     public function serve(
         string $realm,
         string $procedure,
+        ServePolicy $policy,
         BytesOutput $bytes = BytesOutput::Hex,
         Confidentiality $confidential = Confidentiality::Preferred,
-        ?ServePolicy $policy = null,
     ): Served {
         $h = $this->live();
         $realm32 = Binding::buffer(Wire::id32($realm, 'realm'));
@@ -317,14 +320,15 @@ final class Pool
 
     /** Serves procedure in realm as a stream of mode. Its sessions wait until
      * ServedStream::next or ServedStream::handle takes them. Like serve, it
-     * returns once a station has accepted the advertisement. */
+     * names its policy and returns once a station has accepted the
+     * advertisement. */
     public function serveStream(
         string $realm,
         string $procedure,
         StreamMode $mode,
+        ServePolicy $policy,
         BytesOutput $bytes = BytesOutput::Hex,
         Confidentiality $confidential = Confidentiality::Preferred,
-        ?ServePolicy $policy = null,
     ): ServedStream {
         $h = $this->live();
         $realm32 = Binding::buffer(Wire::id32($realm, 'realm'));
@@ -356,14 +360,11 @@ final class Pool
             $procedure, $mode->value, $json, $opts, $deadlineMs, $timeoutMs, 0, $err)), $bytes);
     }
 
-    /** A served procedure's options as the library takes them. */
-    private static function serveOptions(Confidentiality $confidential, ?ServePolicy $policy): string
+    /** A served procedure's options as the library takes them: the policy is
+     * required there, so it is always sent. */
+    private static function serveOptions(Confidentiality $confidential, ServePolicy $policy): string
     {
-        $opts = ['confidential' => $confidential->value];
-        if ($policy !== null) {
-            $opts['policy'] = $policy->toArray();
-        }
-        return json_encode($opts, JSON_THROW_ON_ERROR);
+        return json_encode(['confidential' => $confidential->value, 'policy' => $policy->toArray()], JSON_THROW_ON_ERROR);
     }
 
     /** The verified record under key, or null when there is none. */

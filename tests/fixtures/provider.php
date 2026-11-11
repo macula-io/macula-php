@@ -52,7 +52,7 @@ $org = $config['org'];
 [$procedure, $served, $handler] = match ($config['kind']) {
     'echo' => [
         "{$org}/echo",
-        $pool->serve($realm, "{$org}/echo"),
+        $pool->serve($realm, "{$org}/echo", ServePolicy::open()),
         function (Request $r): mixed {
             if ($r->payload === 'fail') {
                 throw new RuntimeException('refused by the handler');
@@ -67,7 +67,7 @@ $org = $config['org'];
     ],
     'sealed' => [
         "{$org}/sealed",
-        $pool->serve($realm, "{$org}/sealed", confidential: Confidentiality::Required),
+        $pool->serve($realm, "{$org}/sealed", ServePolicy::open(), confidential: Confidentiality::Required),
         fn (Request $r): mixed => ['sealed' => $r->sealed ? 1 : 0, 'echo' => $r->payload],
     ],
     // The org's distributor, stood in for (see the header): gated on the
@@ -101,12 +101,12 @@ $org = $config['org'];
     ],
     'ring' => [
         $pool->ownProcedure('ring'),
-        $pool->serve($realm, $pool->ownProcedure('ring')),
+        $pool->serve($realm, $pool->ownProcedure('ring'), ServePolicy::open()),
         fn (Request $r): mixed => ['rung_by' => $r->caller],
     ],
     'watch' => [
         "{$org}/watch",
-        $pool->serveStream($realm, "{$org}/watch", StreamMode::Server),
+        $pool->serveStream($realm, "{$org}/watch", StreamMode::Server, ServePolicy::open()),
         function (Stream $s): void {
             foreach (['one', 'two', 'three'] as $chunk) {
                 $s->send($chunk);
@@ -115,14 +115,14 @@ $org = $config['org'];
     ],
     'refuse' => [
         "{$org}/refuse",
-        $pool->serveStream($realm, "{$org}/refuse", StreamMode::Server),
+        $pool->serveStream($realm, "{$org}/refuse", StreamMode::Server, ServePolicy::open()),
         function (Stream $s): void {
             throw new RuntimeException('no watching today');
         },
     ],
     'count' => [
         "{$org}/count",
-        $pool->serveStream($realm, "{$org}/count", StreamMode::Client),
+        $pool->serveStream($realm, "{$org}/count", StreamMode::Client, ServePolicy::open()),
         function (Stream $s): void {
             $total = 0;
             foreach ($s as $event) {

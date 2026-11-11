@@ -20,7 +20,7 @@ namespace Macula;
 final class Binding
 {
     /** The ABI version this binding is written against. */
-    public const ABI_VERSION = 1;
+    public const ABI_VERSION = 2;
 
     /** The wire this binding is written against, major.minor (macula 15). */
     public const WIRE_VERSION = '1.0';

@@ -11,10 +11,11 @@ declare(strict_types=1);
 require __DIR__ . '/mesh.php';
 
 use Macula\Request;
+use Macula\ServePolicy;
 
 $pool = connect();
 $procedure = getenv('MACULA_PROCEDURE') ?: $pool->ownProcedure('echo');
-$served = $pool->serve(realm(), $procedure);
+$served = $pool->serve(realm(), $procedure, ServePolicy::open());
 echo "serving {$procedure} as {$pool->nodeId()}; Ctrl-C to stop\n";
 
 // A worker loop: each call waits in the served procedure until handle()

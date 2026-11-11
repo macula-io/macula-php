@@ -9,12 +9,13 @@ declare(strict_types=1);
 
 require __DIR__ . '/mesh.php';
 
+use Macula\ServePolicy;
 use Macula\Stream;
 use Macula\StreamMode;
 
 $pool = connect();
 $procedure = getenv('MACULA_PROCEDURE') ?: $pool->ownProcedure('watch');
-$served = $pool->serveStream(realm(), $procedure, StreamMode::Server);
+$served = $pool->serveStream(realm(), $procedure, StreamMode::Server, ServePolicy::open());
 echo "serving {$procedure}; Ctrl-C to stop\n";
 
 // The stream is closed when the handler returns, aborted when it throws,

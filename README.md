@@ -34,7 +34,7 @@
 > resolves 0.9.0 until 0.10.0.
 >
 > **Status, 2026-10-14:** over macula-go's **released** libmacula (the tag in
-> `abi/MACULA_GO_REF`, ABI 1), so on wire 1.0 (macula 15): handshake v5 bound to
+> `abi/MACULA_GO_REF`, ABI 2), so on wire 1.0 (macula 15): handshake v5 bound to
 > the TLS session, end-to-end sealed calls and streams to a provider that
 > advertises a KEM key (`Confidentiality`), post-quantum identities (ML-DSA-87,
 > as the ML-DSA-87 + RSA-PSS-4096 composite in pq_hybrid, the fleet's profile)
@@ -111,7 +111,7 @@ Serving is a worker of its own, since a PHP process runs one thing at a time
 (see [Serving](#serving)):
 
 ```php
-$served = $pool->serve($realm, $pool->ownProcedure('ring'));   // ~<node_id>/ring: no org, no realm key
+$served = $pool->serve($realm, $pool->ownProcedure('ring'), Macula\ServePolicy::open());   // ~<node_id>/ring: no org, no realm key
 while (true) {
     $served->handle(fn (Macula\Request $r) => ['answered' => $r->caller], timeoutMs: 1_000);
 }
@@ -149,7 +149,7 @@ compatibility layer.
 | Node keys (`NodeKey`) | ✅ | ✅ | `pq_hybrid` (the fleet's) or `pq_pure`; key files readable by the owner only; `sign` and `verify`, pq_hybrid checked against the LAMPS draft's own vector and cross-verified with macula 12.7.0 |
 | Pool of station links (`Pool::connect`) | ✅ | ✅ | Seeds pinned by node_id; realm keys pinned; links redialed with subscriptions and served procedures replayed |
 | Calls by direct dial (`call`, `providers`) | ✅ | ✅ | Errors arrive as `ProviderError` / `RelayError`; a station's refusal of a serve or subscribe is a `RefusedError` with its `reason`, `registration` and `station`; every other failure is a `MaculaException` whose `kind` is the library's error kind |
-| UCANs (`NodeKey::ucan`, `Ucan::proofId`, `ucan:`/`proofs:`, `ServePolicy`) | ✅ | ✅ | A token minted for the node that presents it, delegated by `prf`; a procedure served under `ServePolicy::ucanRequired` or `realmMemberRequired` reaches its handler only with a chain the policy accepts, refused otherwise as `ProviderError` `unauthorized` |
+| UCANs (`NodeKey::ucan`, `Ucan::proofId`, `ucan:`/`proofs:`, `ServePolicy`) | ✅ | ✅ | Every serve names a policy: `ServePolicy::open()` for anyone, or a UCAN one. A token is minted for the node that presents it, delegated by `prf`; a procedure served under `ServePolicy::ucanRequired` or `realmMemberRequired` reaches its handler only with a chain the policy accepts, refused otherwise as `ProviderError` `unauthorized` |
 | The seal report (`callReport`, `Stream::report`) | ✅ | — | Whether the exchange behind a result was sealed, to which provider and key |
 | End-to-end sealing (`confidential:`, `kemAdvertise:`) | ✅ | ✅ | A call or stream is sealed whenever the provider's advertisement names a KEM key; `Confidentiality::Required` fails with `ConfidentialityError` rather than go in the clear; a served `Request` says whether it came `sealed`. A keyed provider that refuses a call `sealed_required` has it resealed to the key in the refusal's signed tbs and answered, the key that provider holds now, rather than failing on a stale keyless candidate (macula-go v0.29.0) |
 | A node's own namespace (`ownProcedure`) | ✅ | ✅ | `~<node_id>/<name>`: served and called with no org and no realm key; the node's signature authorizes it |
@@ -160,6 +160,13 @@ compatibility layer.
 | Node-served content (`shareContent`, `unshareContent`, `getContent`) | ✅ | ✅ | Shared on the node's own `~<node_id>/content_v1` and announced; a fetch checks the block, the manifest and every chunk against the content id, bounded, with no realm key; `NotSharedError` / `ContentUnavailableError` |
 
 ## Serving
+
+Every serve names a policy. `ServePolicy::open()` reaches any caller, and it
+is the line in the source that says so; `ucanRequired` and
+`realmMemberRequired` admit only a caller whose UCAN chain the policy accepts.
+It is a required argument, so a serve that names none is refused before
+libmacula is reached and before a station hears of the procedure, and the
+library's own ABI 2 refuses options that carry no policy as well.
 
 A served call waits in the library until PHP takes it. `Served::next()`
 returns a `PendingCall` (its `request`, then `reply()` or `fail()` once), and

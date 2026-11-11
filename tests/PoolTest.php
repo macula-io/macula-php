@@ -8,6 +8,7 @@ use Macula\BytesOutput;
 use Macula\Confidentiality;
 use Macula\ConfidentialityError;
 use Macula\ContentUnavailableError;
+use Macula\MaculaException;
 use Macula\NodeKey;
 use Macula\NotSharedError;
 use Macula\Pool;
@@ -15,6 +16,7 @@ use Macula\Profile;
 use Macula\ProviderError;
 use Macula\Ucan;
 use Macula\RecordType;
+use Macula\ServePolicy;
 use Macula\StreamData;
 use Macula\StreamEnd;
 use Macula\StreamError;
@@ -296,10 +298,56 @@ final class PoolTest extends TestCase
     public function testARealmMemberPolicyTakesItsKeyIdAsAnyIdIsTaken(): void
     {
         $id = str_repeat('ab', 32);
-        self::assertSame($id, \Macula\ServePolicy::realmMemberRequired(strtoupper($id), 'call')->toArray()['key_id']);
-        self::assertSame($id, \Macula\ServePolicy::realmMemberRequired(hex2bin($id), 'call')->toArray()['key_id']);
+        self::assertSame($id, ServePolicy::realmMemberRequired(strtoupper($id), 'call')->toArray()['key_id']);
+        self::assertSame($id, ServePolicy::realmMemberRequired(hex2bin($id), 'call')->toArray()['key_id']);
         $this->expectException(\InvalidArgumentException::class);
-        \Macula\ServePolicy::realmMemberRequired('abcd', 'call');
+        ServePolicy::realmMemberRequired('abcd', 'call');
+    }
+
+    /**
+     * Serving anyone is a statement the policy makes, not something a serve
+     * does by saying nothing: {"kind":"open"} is the shape the ABI takes as
+     * "serves any caller" (cabi/CONTRACT.md, "Serving and streams"), and every
+     * open procedure in this suite carries it, so the end-to-end proof that an
+     * open one reaches a caller is theirs.
+     */
+    public function testTheOpenPolicyIsTheStatementThatServesAnyone(): void
+    {
+        self::assertSame(['kind' => 'open'], ServePolicy::open()->toArray());
+    }
+
+    /**
+     * macula-php#21: a serve that named no policy advertised the procedure
+     * open, and no line in the app said so. The policy is a required argument
+     * now, so the call itself refuses, before libmacula is reached and before
+     * a station hears of the procedure.
+     */
+    public function testAServeThatNamesNoPolicyIsRefusedBeforeAnythingReachesTheStation(): void
+    {
+        $provider = $this->node(0);
+        $realm = self::$env->realmId;
+        $procedure = $provider->ownProcedure('answered_by_anyone');
+        try {
+            try {
+                $provider->serve($realm, $procedure);
+                self::fail('a serve that named no policy was accepted');
+            } catch (\ArgumentCountError $e) {
+                self::assertStringContainsString('Macula\Pool::serve()', $e->getMessage(),
+                    'the refusal does not name the call that takes the policy');
+            }
+            $caller = $this->node(1);
+            try {
+                $caller->providers($realm, $procedure);
+                self::fail('a procedure nothing serves is advertised');
+            } catch (MaculaException $e) {
+                self::assertStringContainsString('no trusted provider advertises the procedure', $e->getMessage(),
+                    'the caller was refused for another reason than nothing serving the procedure');
+            } finally {
+                $caller->close();
+            }
+        } finally {
+            $provider->close();
+        }
     }
 
     public function testANodesOwnNamespaceIsServedAndCalledWithNoRealmKeyPinned(): void
@@ -322,7 +370,7 @@ final class PoolTest extends TestCase
         $node = $this->node(0, trusted: false);
         try {
             $this->expectExceptionMessageMatches('/own namespace/');
-            $node->serve(self::$env->realmId, '~' . str_repeat('01', 32) . '/ring');
+            $node->serve(self::$env->realmId, '~' . str_repeat('01', 32) . '/ring', ServePolicy::open());
         } finally {
             $node->close();
         }
@@ -332,7 +380,7 @@ final class PoolTest extends TestCase
     {
         $node = $this->node(0, trusted: false);
         try {
-            $served = $node->serve(self::$env->realmId, $node->ownProcedure('idle'));
+            $served = $node->serve(self::$env->realmId, $node->ownProcedure('idle'), ServePolicy::open());
             self::assertNull($served->next(50));
             self::assertFalse($served->handle(fn () => 1, 50));
             $served->stop();

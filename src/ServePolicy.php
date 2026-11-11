@@ -5,18 +5,27 @@ declare(strict_types=1);
 namespace Macula;
 
 /**
- * Who may call or open a served procedure (macula's D7 UCANs): only a caller
- * presenting a UCAN chain rooted at the issuer's identity key
- * (ucanRequired), or at a realm key granting a can (realmMemberRequired).
- * libmacula checks each call and open before it reaches PHP: a refused call
- * is a ProviderError of code "unauthorized" (or "malformed_frame" for a proof
- * no token names), a refused open a StreamError of the same code.
+ * Who may call or open a served procedure (macula's D7 UCANs). Every serve
+ * names one: open() serves anyone, the advertisement saying so in the source,
+ * while ucanRequired and realmMemberRequired admit only a caller presenting a
+ * UCAN chain rooted at the issuer's identity key, or at a realm key granting
+ * a can. libmacula checks each call and open before it reaches PHP: a refused
+ * call is a ProviderError of code "unauthorized" (or "malformed_frame" for a
+ * proof no token names), a refused open a StreamError of the same code.
  */
 final class ServePolicy
 {
     /** @param array<string, string> $fields */
     private function __construct(private readonly array $fields)
     {
+    }
+
+    /** Serves anyone at all: the policy is the advertisement's own statement
+     * that it is open, so a procedure that reaches the whole mesh says so in
+     * the call that serves it. */
+    public static function open(): self
+    {
+        return new self(['kind' => 'open']);
     }
 
     /** A chain rooted at the identity key of the node issuerNodeId names

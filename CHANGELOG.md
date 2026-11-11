@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security (breaking)
+
+- **Every serve names a policy, and the C ABI is 2 (macula-php#21, #19; macula-go#57, #60).** A
+  procedure can no longer be served to any caller because an argument was left out:
+  `Pool::serve` and `Pool::serveStream` take a required `ServePolicy`, so
+  `ServePolicy::open()` is the line in the source that says "any caller", and a call that names
+  no policy is refused before libmacula is reached and before a station hears of the procedure.
+  Under `ucanRequired` or `realmMemberRequired` libmacula still refuses a caller whose chain the
+  policy does not accept, before the handler sees it. This is what macula#150 did for the Erlang
+  SDK, where an advertise with no auth is refused and serving anyone is stated explicitly.
+- **libmacula is macula-go v0.31.0, and its ABI is 2.** Its `macula_pool_serve_opts` and
+  `_serve_stream_opts` require `{"policy": ...}` and refuse options that name none with
+  `invalid_argument`, naming both fixes; `macula_pool_serve` and `macula_pool_serve_stream`, which
+  served open without saying so, are gone. A library of ABI 1 under this binding, or an ABI 2
+  library under a binding of ABI 1, is refused at load by name.
+- **Every offer in this package's examples, fixtures and tests names a policy.** The ones that
+  served anyone now say `ServePolicy::open()` and behave exactly as before.
+
 ## [0.10.0] - 2026-10-29
 
 The A0 release: libmacula is macula-go v0.29.0, the release that carries the A0
