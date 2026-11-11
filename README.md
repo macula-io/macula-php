@@ -83,6 +83,7 @@ first use and kept in a file readable by its owner only.
 
 ```php
 use Macula\NodeKey;
+use Macula\Notice;
 use Macula\Pool;
 use Macula\Seed;
 use Macula\StreamData;
@@ -98,10 +99,16 @@ $pool = Pool::connect($key, [new Seed('station-fi-helsinki.macula.io', 4433, $st
 $answer = $pool->call($realm, 'mcl-echo/echo', 'hello');
 
 // Publish and subscribe; topics name a kind of fact, ids go in the payload.
+// A subscription hands back an Event, or a Notice when its events may have
+// been missed: its link to the station ended, or a gap followed.
 $sub = $pool->subscribe($realm, 'acme/demo/greeting_sent_v1');
 $pool->publish($realm, 'acme/demo/greeting_sent_v1', ['text' => 'hi']);
-foreach ($sub->events(idleMs: 2_000) as $event) {
-    echo json_encode($event->payload), "\n";
+foreach ($sub->events(idleMs: 2_000) as $item) {
+    if ($item instanceof Notice) {
+        echo "may have missed events: {$item->kind} ({$item->reason})\n";
+        continue;
+    }
+    echo json_encode($item->payload), "\n";
 }
 
 // Streams: a server stream's chunks arrive until its end.

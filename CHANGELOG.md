@@ -31,6 +31,17 @@ every served procedure names who may call it.
 - **Every offer in this package's examples, fixtures and tests names a policy.** The ones that
   served anyone now say `ServePolicy::open()` and behave exactly as before.
 
+### Changed (breaking)
+
+- **A subscription's notice is a `Notice`, not a broken `Event` (macula-php#21).** Since macula-go
+  v0.31.0 every subscription item carries a `kind`, and the ABI delivers `interrupted` and `gap`
+  notices as well as events (CONTRACT.md, "Inboxes"). `Subscription::next` handed every item to
+  `Event::fromJson`, which reads no `kind`, so the first time a subscription lost its last link
+  `next()` and `events()` threw a `TypeError`, and the `gap` that says to resync was lost the same
+  way. `next()` and `events()` now hand back `Event|Notice|null`: a notice names its `kind`
+  (`Notice::INTERRUPTED`, `Notice::GAP`), the time it is about, and the library's reason, and a
+  kind this binding does not read is refused by name instead of being read as an event.
+
 ## [0.10.0] - 2026-10-29
 
 The A0 release: libmacula is macula-go v0.29.0, the release that carries the A0
