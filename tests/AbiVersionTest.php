@@ -32,9 +32,32 @@ final class AbiVersionTest extends TestCase
     }
 
     /**
-     * The guard itself, which no test could reach while it was a condition
-     * inside ffi(): removing it left every test passing. A library of another
-     * ABI is refused by the loaded version and the one needed, naming the path.
+     * The guard as ffi() runs it. Every other test loads the right library,
+     * so deleting the check from ffi() leaves them all passing (M4b): this
+     * one goes through ffi() and is told the opened library reports another
+     * ABI. Its own process, since ffi() caches the library it loaded.
+     */
+    #[\PHPUnit\Framework\Attributes\RunInSeparateProcess]
+    public function testFfiRefusesALibraryOfAnotherAbi(): void
+    {
+        $other = Binding::ABI_VERSION - 1;
+        Binding::reportAbi($other);
+        try {
+            Binding::ffi();
+            self::fail("ffi() accepted a library reporting ABI {$other}");
+        } catch (MaculaException $e) {
+            self::assertStringContainsString("is ABI {$other}", $e->getMessage(),
+                'ffi() refused without naming the ABI the library reported');
+            self::assertStringContainsString('macula-php needs ABI ' . Binding::ABI_VERSION, $e->getMessage(),
+                'ffi() refused without naming the ABI this binding is written for');
+        } finally {
+            Binding::reportAbi(null);
+        }
+    }
+
+    /**
+     * The guard's own refusal, read directly: a library of another ABI is
+     * refused by the version it has and the one needed, naming the path.
      */
     public function testAnotherAbiIsRefusedInThisPackagesWords(): void
     {

@@ -116,6 +116,10 @@ final class Binding
 
     private static ?\FFI $ffi = null;
 
+    /** The ABI the next load is told the library reports; null asks the
+     * library itself. See reportAbi(), which is the only thing that sets it. */
+    private static ?int $reportedAbi = null;
+
     /**
      * The loaded library: MACULA_LIBRARY_PATH, or this platform's library in
      * build/native, which `composer build` fetches and checks. A library built
@@ -140,7 +144,8 @@ final class Binding
                     . ' point MACULA_LIBRARY_PATH at another library of this ABI and not older',
                     previous: $e);
             }
-            self::checkAbiVersion($ffi->macula_abi_version(), $path);
+            self::checkAbiVersion(self::$reportedAbi ?? $ffi->macula_abi_version(), $path);
+            self::$reportedAbi = null;
             // Declared const, as abi/macula.h has it, so FFI hands it over as a
             // PHP string and not a pointer: nothing here can free a string the
             // library owns.
@@ -148,6 +153,25 @@ final class Binding
             self::$ffi = $ffi;
         }
         return self::$ffi;
+    }
+
+    /**
+     * Says the next load is of a library reporting $abi, and hands back what
+     * was said before, to be put back. One load only, and null — the
+     * library's own report — is what every load but a test's does.
+     *
+     * It exists because the guard has to be read through ffi() itself: a
+     * check deleted from there leaves every other test green, since every
+     * other test loads the right library, and this package ships no library
+     * of another ABI to point MACULA_LIBRARY_PATH at.
+     *
+     * @internal
+     */
+    public static function reportAbi(?int $abi): ?int
+    {
+        $was = self::$reportedAbi;
+        self::$reportedAbi = $abi;
+        return $was;
     }
 
     /**
