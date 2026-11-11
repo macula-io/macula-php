@@ -113,6 +113,16 @@ $org = $config['org'];
             }
         },
     ],
+    // A stream served under a policy as gated as `gated` is: the refusal comes
+    // back as the stream's own error, on the caller's first recv().
+    'gatedwatch' => [
+        "{$org}/gatedwatch",
+        $pool->serveStream($realm, "{$org}/gatedwatch", StreamMode::Server,
+            policy: ServePolicy::ucanRequired($config['issuer'])),
+        function (Stream $s): void {
+            $s->send('watched');
+        },
+    ],
     'refuse' => [
         "{$org}/refuse",
         $pool->serveStream($realm, "{$org}/refuse", StreamMode::Server, ServePolicy::open()),

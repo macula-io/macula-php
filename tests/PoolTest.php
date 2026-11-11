@@ -17,6 +17,7 @@ use Macula\ProviderError;
 use Macula\Ucan;
 use Macula\RecordType;
 use Macula\ServePolicy;
+use Macula\Stream;
 use Macula\StreamData;
 use Macula\StreamEnd;
 use Macula\StreamError;
@@ -416,6 +417,52 @@ final class PoolTest extends TestCase
         } finally {
             $caller->close();
             $provider->stop();
+        }
+    }
+
+    /**
+     * A stream's policy is the policy its caller is judged by: a serveStream
+     * that dropped its policy at the call site and served anyone would leave
+     * every one of these calls served, and CI green.
+     */
+    public function testAGatedStreamServesOnlyACallerItsRootGranted(): void
+    {
+        $root = NodeKey::generate(Profile::PqPure);
+        $provider = ProviderProcess::start(self::$env, 'gatedwatch', 0, admitted: true, issuer: $root->nodeIdHex());
+        $pool = $this->node(1);
+        $realm = self::$env->realmId;
+        $caps = [['with' => 'mri:org:' . self::$env->realmName . '/' . self::$env->org, 'can' => 'invoke']];
+        try {
+            $this->eventually('the gated stream is advertised', fn (): bool =>
+                $pool->providers($realm, $provider->procedure) !== []);
+            $this->assertStreamRefused($pool->openStream($realm, $provider->procedure, StreamMode::Server));
+            $granted = $root->ucan($pool->nodeId(), $caps, time() + 300);
+            $stream = $pool->openStream($realm, $provider->procedure, StreamMode::Server, ucan: $granted);
+            try {
+                $first = $stream->recv(5_000);
+                self::assertInstanceOf(StreamData::class, $first, 'the granted caller was served no chunk');
+                self::assertSame('watched', hex2bin(substr($first->body, 2)));
+                self::assertInstanceOf(StreamEnd::class, $stream->recv(5_000));
+            } finally {
+                $stream->free();
+            }
+            $this->eventually('every stream released', fn () => self::$env->relayed() === 0);
+        } finally {
+            $pool->close();
+            $provider->stop();
+        }
+    }
+
+    /** A stream a gated procedure refused: its own error, by the ABI's code. */
+    private function assertStreamRefused(Stream $stream): void
+    {
+        try {
+            $stream->recv(5_000);
+            self::fail('a caller with no grant opened a gated stream');
+        } catch (StreamError $e) {
+            self::assertSame('unauthorized', $e->errorCode);
+        } finally {
+            $stream->free();
         }
     }
 
